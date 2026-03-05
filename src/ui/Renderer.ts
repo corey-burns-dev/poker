@@ -62,6 +62,47 @@ export class Renderer {
     return cleaned.charAt(0).toUpperCase();
   }
 
+  private escapeHtml(value: string): string {
+    return value
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
+  private updateReviewSidebar() {
+    const logListEl = document.getElementById('action-log-list') as HTMLOListElement | null;
+    if (logListEl) {
+      const lines = this.game.actionLogEntries;
+      const nearBottom = logListEl.scrollHeight - logListEl.scrollTop - logListEl.clientHeight < 24;
+      logListEl.innerHTML = lines.map((line) => `<li>${this.escapeHtml(line)}</li>`).join('');
+      if (nearBottom) {
+        logListEl.scrollTop = logListEl.scrollHeight;
+      }
+    }
+
+    const resultTitleEl = document.getElementById('hand-result-title');
+    const resultLinesEl = document.getElementById('hand-result-lines');
+    const result = this.game.handResultSummary;
+    if (resultTitleEl) {
+      resultTitleEl.textContent = result ? result.heading : 'Hand in progress';
+      resultTitleEl.className = `hand-result-title${result ? ` is-${result.heroOutcome}` : ''}`;
+    }
+    if (resultLinesEl) {
+      resultLinesEl.innerHTML = result
+        ? result.lines.map((line) => `<li>${this.escapeHtml(line)}</li>`).join('')
+        : '<li>Every action will be listed here live.</li>';
+    }
+
+    const nextHandBtn = document.getElementById('btn-next-hand') as HTMLButtonElement | null;
+    if (nextHandBtn) {
+      const waitingForNextHand = this.game.state.winners !== null;
+      nextHandBtn.disabled = !waitingForNextHand;
+      nextHandBtn.classList.toggle('is-ready', waitingForNextHand);
+    }
+  }
+
   private updatePlayerArea(seatIndex: number, player: PublicPlayer | null, isShowdown: boolean) {
     const playerId = `p${seatIndex + 1}`;
     const area = document.getElementById(`seat-${seatIndex}`) as HTMLElement | null;
@@ -111,6 +152,8 @@ export class Renderer {
 
     if (isOut) {
       statusEl.textContent = isFolded ? 'Folded' : 'Out';
+    } else if (this.game.thinkingSeat === player.seat && !isYou) {
+      statusEl.textContent = 'Thinking...';
     } else if (player.status === 'ALL_IN') {
       statusEl.textContent = 'All-in';
     } else {
@@ -176,6 +219,8 @@ export class Renderer {
       }
     }
 
+    this.updateReviewSidebar();
+
     const controlsEl = document.querySelector('.controls-container') as HTMLElement | null;
     const actionStateEl = document.getElementById('action-state');
     const slider = document.getElementById('bet-slider') as HTMLInputElement | null;
@@ -191,11 +236,17 @@ export class Renderer {
     const heroActive = s.actionTo === 0 && !isShowdown && p1 && p1.status === 'ACTIVE';
 
     if (heroActive) {
-      const callAmt = Math.max(0, s.lastRaiseAmount - p1.betThisStreet);
-      const maxTarget = p1.betThisStreet + p1.stack;
+      const currentBet = Array.from(s.currentBets.values()).reduce((max, bet) => Math.max(max, bet), 0);
+      const heroBet = s.currentBets.get(p1.seat) ?? p1.betThisStreet;
+      const callAmt = Math.max(0, currentBet - heroBet);
+      const maxTarget = heroBet + p1.stack;
+      const minRaiseTarget = currentBet > 0
+        ? currentBet + Math.max(1, s.lastRaiseAmount)
+        : Math.max(1, s.bigBlind);
       const minTarget = callAmt > 0
-        ? Math.min(maxTarget, p1.betThisStreet + callAmt + s.minRaise)
-        : Math.min(maxTarget, Math.max(1, s.minRaise));
+        ? Math.min(maxTarget, minRaiseTarget)
+        : Math.min(maxTarget, Math.max(1, s.bigBlind));
+      const canRaise = currentBet > 0 ? maxTarget > currentBet : maxTarget > 0;
 
       slider.min = minTarget.toString();
       slider.max = maxTarget.toString();
@@ -213,13 +264,15 @@ export class Renderer {
       raiseBtn.dataset.action = callAmt > 0 ? 'raise' : 'bet';
 
       actionStateEl.textContent = callAmt > 0
-        ? `Your turn: call ${callAmt}, raise, or fold.`
+        ? canRaise
+          ? `Your turn: call ${callAmt}, raise, or fold.`
+          : `Your turn: call ${callAmt} or fold.`
         : 'Your turn: check or bet.';
 
       controlsEl.classList.remove('is-disabled');
-      slider.disabled = false;
+      slider.disabled = !canRaise;
       callBtn.disabled = false;
-      raiseBtn.disabled = false;
+      raiseBtn.disabled = !canRaise;
       foldBtn.disabled = false;
       return;
     }
@@ -232,7 +285,9 @@ export class Renderer {
     callBtn.textContent = 'Check / Call';
     raiseBtn.textContent = 'Bet / Raise';
 
-    if (isShowdown) {
+    if (s.winners !== null) {
+      actionStateEl.textContent = 'Hand complete. Review the sidebar and press Next Hand when ready.';
+    } else if (isShowdown) {
       actionStateEl.textContent = 'Showdown in progress...';
     } else if (!p1 || p1.status === 'FOLDED') {
       actionStateEl.textContent = 'You folded this hand.';

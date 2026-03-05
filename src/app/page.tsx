@@ -92,6 +92,8 @@ export default function Home() {
 
       game.onStateChange = () => renderer.update();
       game.onMessage = (msg: string) => renderer.showMessage(msg);
+      game.onActionLogUpdate = () => renderer.update();
+      game.onHandResultUpdate = () => renderer.update();
 
       gameRef.current = game;
       rendererRef.current = renderer;
@@ -100,7 +102,8 @@ export default function Home() {
       const display = document.getElementById('bet-amount-display');
       const callBtn = document.getElementById('btn-call');
       const raiseBtn = document.getElementById('btn-raise');
-      if (!slider || !display || !callBtn || !raiseBtn) return;
+      const nextHandBtn = document.getElementById('btn-next-hand');
+      if (!slider || !display || !callBtn || !raiseBtn || !nextHandBtn) return;
 
       const syncDisplay = () => {
         display.textContent = `🪙 ${slider.value}`;
@@ -139,6 +142,7 @@ export default function Home() {
         const amount = Number.parseInt(slider.value, 10);
         game.handlePlayerAction(action, Number.isNaN(amount) ? undefined : amount);
       };
+      const onNextHand = () => game.startRound();
 
       slider.addEventListener('input', onSliderInput);
       document.getElementById('btn-min')?.addEventListener('click', onMin);
@@ -148,6 +152,7 @@ export default function Home() {
       document.getElementById('btn-fold')?.addEventListener('click', onFold);
       callBtn.addEventListener('click', onCall);
       raiseBtn.addEventListener('click', onRaise);
+      nextHandBtn.addEventListener('click', onNextHand);
 
       game.startRound();
       renderer.update();
@@ -161,6 +166,7 @@ export default function Home() {
         document.getElementById('btn-fold')?.removeEventListener('click', onFold);
         callBtn.removeEventListener('click', onCall);
         raiseBtn.removeEventListener('click', onRaise);
+        nextHandBtn.removeEventListener('click', onNextHand);
       };
     }
   }, []);
@@ -175,62 +181,84 @@ export default function Home() {
         Welcome to Poker!
       </div>
 
-      <div className="table-stage anim-slide-up">
-        <div className="poker-table">
-          <div className="community-cards" id="community-cards">
-            <div className="card-slot board-slot"></div>
-            <div className="card-slot board-slot"></div>
-            <div className="card-slot board-slot"></div>
-            <div className="card-slot board-slot"></div>
-            <div className="card-slot board-slot"></div>
+      <div className="table-layout">
+        <div className="table-stage anim-slide-up">
+          <div className="poker-table">
+            <div className="community-cards" id="community-cards">
+              <div className="card-slot board-slot"></div>
+              <div className="card-slot board-slot"></div>
+              <div className="card-slot board-slot"></div>
+              <div className="card-slot board-slot"></div>
+              <div className="card-slot board-slot"></div>
+            </div>
           </div>
-        </div>
 
-        <div className="table-seats">
-          {Array.from({ length: MAX_SEATS }, (_, seat) => {
-            const layout = seatLayouts[seat] || DESKTOP_SEAT_LAYOUTS[seat];
-            const style = {
-              '--seat-x': `${layout.seatX}%`,
-              '--seat-y': `${layout.seatY}%`,
-              '--bet-x': `${layout.betX}%`,
-              '--bet-y': `${layout.betY}%`,
-            } as CSSProperties;
-            const playerId = `p${seat + 1}`;
+          <div className="table-seats">
+            {Array.from({ length: MAX_SEATS }, (_, seat) => {
+              const layout = seatLayouts[seat] || DESKTOP_SEAT_LAYOUTS[seat];
+              const style = {
+                '--seat-x': `${layout.seatX}%`,
+                '--seat-y': `${layout.seatY}%`,
+                '--bet-x': `${layout.betX}%`,
+                '--bet-y': `${layout.betY}%`,
+              } as CSSProperties;
+              const playerId = `p${seat + 1}`;
 
-            return (
-              <div className="seat-slot" key={seat}>
-                <div className="seat-anchor" style={style}>
-                  <div className={`player-area${seat === 0 ? ' is-you' : ''}`} id={`seat-${seat}`}>
-                    <div className="avatar-row">
-                      <div className="player-avatar" id={`${playerId}-avatar`}>{seat === 0 ? 'Y' : seat + 1}</div>
-                      {seat === 0 && (
-                        <div className="player-cards compact" id={`${playerId}-cards`}>
+              return (
+                <div className="seat-slot" key={seat}>
+                  <div className="seat-anchor" style={style}>
+                    <div className={`player-area${seat === 0 ? ' is-you' : ''}`} id={`seat-${seat}`}>
+                      <div className="avatar-row">
+                        <div className="player-avatar" id={`${playerId}-avatar`}>{seat === 0 ? 'Y' : seat + 1}</div>
+                        {seat === 0 && (
+                          <div className="player-cards compact" id={`${playerId}-cards`}>
+                            <div className="card-slot hole-slot"></div>
+                            <div className="card-slot hole-slot"></div>
+                          </div>
+                        )}
+                      </div>
+                      <div className="player-info glass-panel">
+                        <div className="player-name" id={`${playerId}-name`}>Seat {seat + 1}</div>
+                        <div className="player-chips" id={`${playerId}-chips`}>Waiting...</div>
+                      </div>
+                      {seat !== 0 && (
+                        <div className="player-cards" id={`${playerId}-cards`}>
                           <div className="card-slot hole-slot"></div>
                           <div className="card-slot hole-slot"></div>
                         </div>
                       )}
+                      <div className="player-status" id={`${playerId}-status`}></div>
                     </div>
-                    <div className="player-info glass-panel">
-                      <div className="player-name" id={`${playerId}-name`}>Seat {seat + 1}</div>
-                      <div className="player-chips" id={`${playerId}-chips`}>Waiting...</div>
-                    </div>
-                    {seat !== 0 && (
-                      <div className="player-cards" id={`${playerId}-cards`}>
-                        <div className="card-slot hole-slot"></div>
-                        <div className="card-slot hole-slot"></div>
-                      </div>
-                    )}
-                    <div className="player-status" id={`${playerId}-status`}></div>
+                  </div>
+
+                  <div className="seat-bet-anchor" style={style}>
+                    <div className="seat-bet" id={`${playerId}-bet`}></div>
                   </div>
                 </div>
-
-                <div className="seat-bet-anchor" style={style}>
-                  <div className="seat-bet" id={`${playerId}-bet`}></div>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
+
+        <aside className="action-sidebar glass-panel anim-slide-up" style={{ animationDelay: '0.12s' }}>
+          <div className="action-sidebar-header">
+            <h2>Hand Log</h2>
+            <button className="btn tiny" id="btn-next-hand" disabled>
+              Next Hand
+            </button>
+          </div>
+
+          <section className="hand-result">
+            <div className="hand-result-title" id="hand-result-title">Hand in progress</div>
+            <ul className="hand-result-lines" id="hand-result-lines">
+              <li>Every action will be listed here live.</li>
+            </ul>
+          </section>
+
+          <section className="action-log">
+            <ol id="action-log-list"></ol>
+          </section>
+        </aside>
       </div>
 
       <div className="controls-container glass-panel anim-slide-up" style={{ animationDelay: '0.2s' }}>

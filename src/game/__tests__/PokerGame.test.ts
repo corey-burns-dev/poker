@@ -90,12 +90,10 @@ describe("PokerGame Base Action Validations (validateBetOrRaise)", () => {
         const actingPlayerId = s.players[actingPlayerSeat]!.id;
         
         // Pot is 30 (SB 10 + BB 20).
-        // Action is on UTG. To call is 20. Total pot after hypothetically calling is 50.
-        // Max raise = lastRaiseAmount(20) + potSizeAfterCall (50) = 70.
-        // Allowed targetAmount: maxRaise(70) + betThisStreet(0) + toCall(20) = 90.
-
-        expect(plGame.validateBetOrRaise(actingPlayerId, 90, true)).toBe(true);
-        expect(plGame.validateBetOrRaise(actingPlayerId, 95, true)).toBe(false);
+        // Action is on UTG. To call is 20. Pot after call is 50.
+        // In pot-limit, max raise target is currentBet(20) + potAfterCall(50) = 70.
+        expect(plGame.validateBetOrRaise(actingPlayerId, 70, true)).toBe(true);
+        expect(plGame.validateBetOrRaise(actingPlayerId, 71, true)).toBe(false);
     });
     
     test("FIXED_LIMIT: Restricts bets/raises to exact jump sizes depending on street", () => {
@@ -249,13 +247,13 @@ describe("PokerGame Bot AI Logic (triggerAILogic)", () => {
     test("AI checks when no bet to call", () => {
         const engineActSpy = jest.spyOn(game.engine, 'act');
         
-        // Fake no toCall by clearing raises and bet this street
+        // Fake no toCall by clearing all current street bets
         const actingSeat = game.state.actionTo!;
         const actingPlayer = game.state.players[actingSeat]!;
 
         // Cast to 'any' to force overwrite readonly state properties for testing logic branch
-        (game.engine.state as any).lastRaiseAmount = 0;
-        (actingPlayer as any).betThisStreet = 0; 
+        (game.engine.state as any).currentBets = new Map();
+        (actingPlayer as any).betThisStreet = 0;
         
         jest.spyOn(Math, 'random').mockReturnValue(0.1);
         
@@ -265,6 +263,21 @@ describe("PokerGame Bot AI Logic (triggerAILogic)", () => {
         expect(engineActSpy).toHaveBeenCalledWith(expect.objectContaining({ type: 'CHECK', playerId: actingPlayer.id }));
         
         jest.restoreAllMocks();
+    });
+
+    test("AI auto-skips a non-active action seat instead of hanging", () => {
+        const badSeat = game.state.actionTo!;
+        const badPlayer = game.state.players[badSeat]!;
+        const engineActSpy = jest.spyOn(game.engine, 'act');
+
+        jest.clearAllTimers();
+        (game as any).aiDelayTimer = null;
+        (game.engine.state as any).actionTo = badSeat;
+        (game.engine.state.players[badSeat] as any).status = 'FOLDED';
+
+        game.triggerAILogic();
+
+        expect(engineActSpy).toHaveBeenCalledWith(expect.objectContaining({ type: 'TIMEOUT', playerId: badPlayer.id }));
     });
     
     test("AI triggers next AI logic step after acting", () => {
