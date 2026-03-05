@@ -8,7 +8,9 @@
     "start": "next start"
   },
   "dependencies": {
+    "@pokertools/engine": "^1.0.1",
     "next": "16.1.6",
+    "process": "^0.11.10",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },

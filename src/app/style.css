@@ -1,0 +1,313 @@
+:root {
+  --bg-color-main: #0a0e17;
+  --bg-color-accent: #111a2e;
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glow-color: rgba(66, 135, 245, 0.4);
+  --accent-color: #4287f5;
+  --accent-hover: #5b9bf8;
+  --text-main: #f0f4f8;
+  --text-muted: #8b9eb7;
+  --card-width: 80px;
+  --card-height: 112px;
+  --table-color: #1a4f32;
+  --table-glow: rgba(26, 79, 50, 0.6);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Outfit', sans-serif;
+  background: radial-gradient(circle at 50% 0%, var(--bg-color-accent) 0%, var(--bg-color-main) 100%);
+  color: var(--text-main);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  position: relative;
+}
+
+.game-info {
+  position: absolute;
+  top: 2rem;
+  left: 2rem;
+  padding: 10px 20px;
+  font-weight: 600;
+  font-size: 1.2rem;
+  color: #fbbf24;
+}
+
+/* Glassmorphism helpers */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+}
+
+.title {
+  position: absolute;
+  top: 2rem;
+  font-size: 2.5rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #fff, #8b9eb7);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 30px var(--glow-color);
+  animation: float 6s ease-in-out infinite;
+}
+
+/* Poker Table */
+.poker-table {
+  width: 90%;
+  max-width: 1000px;
+  height: 500px;
+  background: radial-gradient(ellipse at center, #2e7d32 0%, var(--table-color) 100%);
+  border-radius: 250px;
+  border: 12px solid #2a2a2a;
+  box-shadow: 
+    0 20px 50px rgba(0,0,0,0.5),
+    inset 0 0 40px var(--table-glow),
+    inset 0 0 10px rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  margin-top: 2rem;
+}
+
+/* Cards */
+.card-slot {
+  width: var(--card-width);
+  height: var(--card-height);
+  border-radius: 6px;
+  border: 2px dashed rgba(255,255,255,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.playing-card {
+  width: var(--card-width);
+  height: var(--card-height);
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 6px;
+  color: #222;
+  font-weight: 800;
+  font-size: 1.1rem;
+  position: relative;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  user-select: none;
+}
+
+.playing-card:hover {
+  transform: translateY(-8px) rotate(2deg);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.4);
+}
+
+.playing-card.red {
+  color: #e53935;
+}
+
+.playing-card.black {
+  color: #212121;
+}
+
+.playing-card .center-suit {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 2.5rem;
+  opacity: 0.8;
+}
+
+.community-cards {
+  display: flex;
+  gap: 12px;
+}
+
+/* 4 Players Layout */
+.player-area {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  transition: transform 0.3s;
+}
+
+.player-area.bottom {
+  bottom: -40px;
+}
+
+.player-area.top {
+  top: -40px;
+}
+
+.player-area.left {
+  left: -20px;
+  flex-direction: row-reverse;
+}
+.player-area.left .player-cards, .player-area.right .player-cards {
+  transform: rotate(90deg) scale(0.9);
+}
+
+.player-area.right {
+  right: -20px;
+  flex-direction: row;
+}
+
+.player-info {
+  padding: 8px 16px;
+  min-width: 130px;
+  text-align: center;
+}
+
+.player-name {
+  font-weight: 600;
+  font-size: 1.0rem;
+  margin-bottom: 2px;
+}
+
+.player-chips {
+  color: #ffb300;
+  font-weight: 800;
+  font-size: 1.0rem;
+  line-height: 1.2;
+}
+
+.player-cards {
+  display: flex;
+  gap: 8px;
+}
+
+/* Controls Layer */
+.controls-container {
+  position: relative;
+  margin-top: 4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 1rem;
+  width: 90%;
+  max-width: 600px;
+}
+
+.bet-slider-container {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  width: 100%;
+}
+
+input[type=range] {
+  flex-grow: 1;
+  accent-color: var(--accent-color);
+  cursor: pointer;
+}
+
+#bet-amount-display {
+  font-weight: 800;
+  font-size: 1.1rem;
+  color: #fbbf24;
+  min-width: 70px;
+  text-align: right;
+}
+
+.btn-group {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.main-actions {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+}
+
+.btn {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  color: var(--text-main);
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(12px);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.btn.tiny {
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: translateY(-2px);
+}
+
+.btn.primary {
+  background: var(--accent-color);
+  border-color: var(--accent-hover);
+}
+
+.btn.primary:hover {
+  background: var(--accent-hover);
+  box-shadow: 0 4px 20px var(--glow-color);
+}
+
+.btn.danger {
+  background: rgba(229, 57, 53, 0.2);
+  border-color: rgba(229, 57, 53, 0.5);
+}
+
+.btn.danger:hover {
+  background: rgba(229, 57, 53, 0.4);
+}
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
+}
+
+@keyframes slideInUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.anim-slide-up {
+  animation: slideInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
