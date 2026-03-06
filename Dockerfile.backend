@@ -1,0 +1,16 @@
+FROM elixir:1.19.5-otp-28
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends build-essential git inotify-tools \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY backend/mix.exs backend/mix.lock backend/.formatter.exs ./
+COPY backend/config ./config
+RUN mix local.hex --force && mix local.rebar --force && mix deps.get
+
+COPY backend/ ./
+
+EXPOSE 4000
+CMD ["mix", "phx.server"]

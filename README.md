@@ -1,25 +1,36 @@
-# Poker Game
+# Poker Platform
 
-A modern, web-based Poker game built with Next.js, React, and Bun.
+This repo is split into:
 
-## Features
-- Real-time multiplayer poker
-- Texas Hold'em rules
-- Responsive web UI
+- `frontend/`: React + Vite client for the poker UI
+- `backend/`: Elixir service that will host table state and realtime game traffic
 
-## Getting Started
-
-First, install dependencies:
+## Run the stack
 
 ```bash
-bun install
+make up
 ```
 
-Then, run the development server:
+Services:
+
+- Frontend: http://localhost:3000
+- Backend health: http://localhost:4000/api/health
+- Backend table API: http://localhost:4000/api/tables/default
+- Backend Phoenix socket: ws://localhost:4000/socket/websocket
+
+## Other commands
 
 ```bash
+make build
+make down
+make logs
+make ps
+```
+
+## Local frontend without Docker
+
+```bash
+cd frontend
+bun install
 bun run dev
 ```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
