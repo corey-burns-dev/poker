@@ -52,6 +52,8 @@ export type ClientState = {
 	board: string[];
 	winners: Array<{ seat: number; amount: number }> | null;
 	buttonSeat: number;
+	handEndMode: "fold" | "showdown" | null;
+	manualStartRequired: boolean;
 };
 
 export class PhoenixPokerGame {
@@ -146,15 +148,27 @@ export class PhoenixPokerGame {
 	}
 
 	get actionLogEntries(): readonly string[] {
-		return this.table?.hand_state.action_log ?? ["Connecting to table..."];
+		return (
+			this.table?.hand_state.action_log.map((line) =>
+				this.replaceSeatLabels(line),
+			) ?? ["Connecting to table..."]
+		);
 	}
 
 	get handResultSummary(): HandResultSummary | null {
 		const result = this.table?.hand_state.hand_result;
 		if (!result) return null;
+		const lines = result.lines.map((line) => this.replaceSeatLabels(line));
+		const isFoldWin = lines.some((line) =>
+			line.startsWith("Hand ends by fold."),
+		);
+		const heading = this.replaceSeatLabels(result.heading);
 		return {
-			heading: result.heading,
-			lines: result.lines,
+			heading:
+				isFoldWin && !heading.toLowerCase().includes("by fold")
+					? `${heading} by fold`
+					: heading,
+			lines,
 			heroOutcome: result.hero_outcome,
 		};
 	}
@@ -240,6 +254,7 @@ export class PhoenixPokerGame {
 		);
 		const potBase = Math.max((table?.hand_state.pot ?? 0) - committedBets, 0);
 		const stage = this.mapStage(table?.hand_state.stage ?? "preflop");
+		const handEndMode = this.handEndMode(table);
 		const winners =
 			table?.hand_state.winner_seats?.map((seat: number) => ({
 				seat: seat - 1,
@@ -263,6 +278,8 @@ export class PhoenixPokerGame {
 			board: table?.hand_state.community_cards ?? [],
 			winners: table?.hand_state.status === "complete" ? winners : null,
 			buttonSeat: (table?.hand_state.dealer_seat ?? 1) - 1,
+			handEndMode,
+			manualStartRequired: this.manualStartRequired(table),
 		};
 	}
 
@@ -289,5 +306,36 @@ export class PhoenixPokerGame {
 		if (lastEvent === "turn_dealt") return { type: "street_turn" };
 		if (lastEvent === "river_dealt") return { type: "street_river" };
 		return null;
+	}
+
+	private replaceSeatLabels(line: string): string {
+		return line.replace(/\b[Ss]eat (\d+)\b/g, (match, seatText) => {
+			const seatNumber = Number.parseInt(seatText, 10);
+			if (Number.isNaN(seatNumber)) return match;
+			const playerName = this.table?.players.find(
+				(player) => player.seat === seatNumber,
+			)?.name;
+			return playerName ?? match;
+		});
+	}
+
+	private handEndMode(table: BackendTable | null): ClientState["handEndMode"] {
+		if (table?.hand_state.status !== "complete") return null;
+		if (
+			table.hand_state.hand_result?.lines.some((line) =>
+				line.startsWith("Hand ends by fold."),
+			)
+		) {
+			return "fold";
+		}
+		return "showdown";
+	}
+
+	private manualStartRequired(table: BackendTable | null): boolean {
+		if (!table) return false;
+		return table.players.some(
+			(player) =>
+				!player.is_bot && player.stack > 0 && player.will_play_next_hand,
+		);
 	}
 }

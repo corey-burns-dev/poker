@@ -25,14 +25,14 @@ defmodule PokerBackend.Table do
   #   balanced   – follows CFR closely, moderate sizing
   #   aggressive – bluffs more, bigger bets, rarely folds pre-flop
   @bot_profiles %{
-    1 => %{style: "tight",      looseness: -14, aggression: 4,  bluff: 1},
-    2 => %{style: "aggressive", looseness: 12,  aggression: 20, bluff: 9},
-    3 => %{style: "balanced",   looseness: 2,   aggression: 8,  bluff: 3},
-    4 => %{style: "tight",      looseness: -12, aggression: 5,  bluff: 1},
-    5 => %{style: "aggressive", looseness: 14,  aggression: 22, bluff: 11},
-    6 => %{style: "balanced",   looseness: 4,   aggression: 10, bluff: 4},
-    7 => %{style: "tight",      looseness: -16, aggression: 3,  bluff: 0},
-    8 => %{style: "aggressive", looseness: 10,  aggression: 18, bluff: 7}
+    1 => %{style: "tight", looseness: -14, aggression: 4, bluff: 1},
+    2 => %{style: "aggressive", looseness: 12, aggression: 20, bluff: 9},
+    3 => %{style: "balanced", looseness: 2, aggression: 8, bluff: 3},
+    4 => %{style: "tight", looseness: -12, aggression: 5, bluff: 1},
+    5 => %{style: "aggressive", looseness: 14, aggression: 22, bluff: 11},
+    6 => %{style: "balanced", looseness: 4, aggression: 10, bluff: 4},
+    7 => %{style: "tight", looseness: -16, aggression: 3, bluff: 0},
+    8 => %{style: "aggressive", looseness: 10, aggression: 18, bluff: 7}
   }
 
   @ranks ["2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K", "A"]
@@ -863,13 +863,13 @@ defmodule PokerBackend.Table do
         %{amount: pot, eligible_seats: [winner_seat], winner_seats: [winner_seat]}
       ])
       |> Map.put(:hand_result, %{
-        heading: "Seat #{winner_seat} wins",
+        heading: "Seat #{winner_seat} wins by fold",
         lines: [message],
         hero_outcome: hero_outcome([winner_seat])
       })
       |> update_in(
         [:action_log],
-        &(&1 |> append_log(message) |> append_log("Next hand starts in 5 seconds."))
+        &(&1 |> append_log(message) |> append_log(next_hand_prompt(state)))
       )
 
     %{
@@ -916,7 +916,7 @@ defmodule PokerBackend.Table do
       )
       |> update_in(
         [:action_log],
-        &(&1 |> append_log(message) |> append_log("Next hand starts in 5 seconds."))
+        &(&1 |> append_log(message) |> append_log(next_hand_prompt(state)))
       )
 
     %{
@@ -1393,9 +1393,9 @@ defmodule PokerBackend.Table do
   defp cfr_profile_adjust({fold, _passive, aggr}, profile) do
     {fold_shift, aggr_shift} =
       case profile.style do
-        "tight"      -> {90, -60}
+        "tight" -> {90, -60}
         "aggressive" -> {-70, 100}
-        _            -> {0, 0}
+        _ -> {0, 0}
       end
 
     fold_adj = clamp(fold + fold_shift, 0, 1000)
@@ -1853,7 +1853,7 @@ defmodule PokerBackend.Table do
 
   defp auto_progress_delay(state) do
     cond do
-      state.game_state == "waiting_for_hand" and ready_player_count(state.players) >= 2 ->
+      auto_start_next_hand?(state) ->
         @auto_hand_delay
 
       state.hand_state.status == "in_progress" and bot_turn?(state) ->
@@ -1866,7 +1866,7 @@ defmodule PokerBackend.Table do
 
   defp auto_progress(state) do
     cond do
-      state.game_state == "waiting_for_hand" and ready_player_count(state.players) >= 2 ->
+      auto_start_next_hand?(state) ->
         apply_action(state, "next_hand", %{})
 
       state.hand_state.status == "in_progress" and bot_turn?(state) ->
@@ -1876,6 +1876,24 @@ defmodule PokerBackend.Table do
       true ->
         state
     end
+  end
+
+  defp auto_start_next_hand?(state) do
+    state.game_state == "waiting_for_hand" and ready_player_count(state.players) >= 2 and
+      ready_human_player_count(state.players) == 0
+  end
+
+  defp ready_human_player_count(players) do
+    players
+    |> Enum.count(fn player ->
+      not player.is_bot and player.stack > 0 and player.will_play_next_hand
+    end)
+  end
+
+  defp next_hand_prompt(state) do
+    if auto_start_next_hand?(state),
+      do: "Next hand starts in 5 seconds.",
+      else: "Press Start Next Hand when ready."
   end
 
   defp broadcast_state(state) do

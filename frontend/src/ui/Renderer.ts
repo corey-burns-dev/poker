@@ -1,5 +1,80 @@
 import type { ClientPlayer, PhoenixPokerGame } from "../game/PhoenixPokerGame";
 
+const BOT_AVATAR_THEMES = [
+	{
+		backgroundFrom: "#1e3554",
+		backgroundTo: "#122238",
+		accent: "#f6c85f",
+		skin: "#f2c6a2",
+		hair: "#2f1e1b",
+		shirt: "#d95d5d",
+		accessory: "visor",
+	},
+	{
+		backgroundFrom: "#1c3e3a",
+		backgroundTo: "#0e2522",
+		accent: "#79d2a6",
+		skin: "#e9b78d",
+		hair: "#101820",
+		shirt: "#2aa876",
+		accessory: "glasses",
+	},
+	{
+		backgroundFrom: "#432d56",
+		backgroundTo: "#241331",
+		accent: "#f29fd6",
+		skin: "#f4c8b2",
+		hair: "#2d1f3d",
+		shirt: "#8f5bd6",
+		accessory: "cap",
+	},
+	{
+		backgroundFrom: "#4a3521",
+		backgroundTo: "#20150c",
+		accent: "#ffb86b",
+		skin: "#efbb93",
+		hair: "#2d2115",
+		shirt: "#f28534",
+		accessory: "earring",
+	},
+	{
+		backgroundFrom: "#2d3f1d",
+		backgroundTo: "#16210d",
+		accent: "#c8e26a",
+		skin: "#efc29c",
+		hair: "#1f2919",
+		shirt: "#7bb661",
+		accessory: "headphones",
+	},
+	{
+		backgroundFrom: "#213d52",
+		backgroundTo: "#0d1c28",
+		accent: "#82d8ff",
+		skin: "#f1c7ab",
+		hair: "#17202a",
+		shirt: "#4aa3d1",
+		accessory: "beard",
+	},
+	{
+		backgroundFrom: "#4c2433",
+		backgroundTo: "#220f19",
+		accent: "#ff92b0",
+		skin: "#f0bd97",
+		hair: "#25121d",
+		shirt: "#d94f7c",
+		accessory: "visor",
+	},
+	{
+		backgroundFrom: "#29314a",
+		backgroundTo: "#111726",
+		accent: "#97b7ff",
+		skin: "#ecc39f",
+		hair: "#141925",
+		shirt: "#5d7ce2",
+		accessory: "glasses",
+	},
+] as const;
+
 export class Renderer {
 	private game: PhoenixPokerGame;
 
@@ -68,6 +143,10 @@ export class Renderer {
 		return cleaned.charAt(0).toUpperCase();
 	}
 
+	private formatAmount(amount: number): string {
+		return amount.toLocaleString("en-US");
+	}
+
 	private escapeHtml(value: string): string {
 		return value
 			.replaceAll("&", "&amp;")
@@ -132,7 +211,76 @@ export class Renderer {
 
 		if (chips.length === 0) chips.push('<div class="chip chip-white"></div>');
 
-		return `<div class="bet-label">${amount}</div><div class="chip-stack">${chips.join("")}</div>`;
+		return `<div class="bet-label">${this.formatAmount(amount)}</div><div class="chip-stack">${chips.join("")}</div>`;
+	}
+
+	private renderAccessory(
+		type: (typeof BOT_AVATAR_THEMES)[number]["accessory"],
+		accent: string,
+		hair: string,
+	): string {
+		switch (type) {
+			case "visor":
+				return `
+					<path d="M24 30c7-6 25-6 32 0v7H24z" fill="${accent}" opacity="0.96" />
+					<path d="M24 37c4 3 24 3 32 0v6H24z" fill="${hair}" opacity="0.68" />
+				`;
+			case "glasses":
+				return `
+					<rect x="23" y="42" width="12" height="8" rx="3" fill="none" stroke="${accent}" stroke-width="2.5" />
+					<rect x="45" y="42" width="12" height="8" rx="3" fill="none" stroke="${accent}" stroke-width="2.5" />
+					<path d="M35 46h10" stroke="${accent}" stroke-width="2.5" stroke-linecap="round" />
+				`;
+			case "cap":
+				return `
+					<path d="M24 35c3-12 29-12 32 0v7H24z" fill="${accent}" />
+					<path d="M27 42c8-3 18-3 26 0" stroke="${hair}" stroke-width="3" stroke-linecap="round" />
+				`;
+			case "earring":
+				return '<circle cx="56" cy="58" r="2.2" fill="#ffd7a8" stroke="#fef3d4" stroke-width="1.3" />';
+			case "headphones":
+				return `
+					<path d="M27 40a13 13 0 0 1 26 0" fill="none" stroke="${accent}" stroke-width="4" stroke-linecap="round" />
+					<rect x="21" y="42" width="7" height="16" rx="3.5" fill="${accent}" />
+					<rect x="54" y="42" width="7" height="16" rx="3.5" fill="${accent}" />
+				`;
+			case "beard":
+				return '<path d="M31 61c2 8 8 12 13 12s11-4 13-12c-2 1-5 2-8 2H39c-3 0-6-1-8-2Z" fill="#3b261d" opacity="0.85" />';
+			default:
+				return "";
+		}
+	}
+
+	private botAvatarDataUri(seatIndex: number): string {
+		const theme = BOT_AVATAR_THEMES[seatIndex % BOT_AVATAR_THEMES.length];
+		const svg = `
+			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" role="img" aria-hidden="true">
+				<defs>
+					<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+						<stop offset="0%" stop-color="${theme.backgroundFrom}" />
+						<stop offset="100%" stop-color="${theme.backgroundTo}" />
+					</linearGradient>
+				</defs>
+				<rect width="80" height="80" rx="40" fill="url(#bg)" />
+				<circle cx="62" cy="16" r="9" fill="${theme.accent}" opacity="0.22" />
+				<path d="M18 79c1-14 11-24 22-24h1c11 0 21 10 22 24" fill="${theme.shirt}" />
+				<circle cx="40" cy="41" r="15.5" fill="${theme.skin}" />
+				<path d="M24 40c1-10 8-17 16-17 9 0 16 7 16 17-2-4-6-7-10-8-6-2-14-1-22 8Z" fill="${theme.hair}" />
+				<circle cx="34" cy="44" r="1.8" fill="#17202a" />
+				<circle cx="46" cy="44" r="1.8" fill="#17202a" />
+				<path d="M35 52c3 2 7 2 10 0" fill="none" stroke="#9d5f4a" stroke-width="2.2" stroke-linecap="round" />
+				${this.renderAccessory(theme.accessory, theme.accent, theme.hair)}
+			</svg>
+		`;
+		return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+	}
+
+	private renderAvatar(player: ClientPlayer, seatIndex: number): string {
+		if (player.isBot) {
+			return `<img class="player-avatar-image" src="${this.botAvatarDataUri(seatIndex)}" alt="${this.escapeHtml(player.name)} avatar" />`;
+		}
+
+		return `<span class="player-avatar-label">${this.escapeHtml(this.avatarText(player.name, player.isCurrentUser))}</span>`;
 	}
 
 	private updatePlayerArea(
@@ -140,6 +288,7 @@ export class Renderer {
 		player: ClientPlayer | null,
 		showAllCards: boolean,
 		winnerSeats: Set<number>,
+		handEndMode: "fold" | "showdown" | null,
 	) {
 		const playerId = `p${seatIndex + 1}`;
 		const area = document.getElementById(
@@ -168,7 +317,8 @@ export class Renderer {
 		if (!player) {
 			area.classList.add("is-empty");
 			area.classList.remove("is-active", "is-folded", "is-busted", "is-winner");
-			avatarEl.textContent = (seatIndex + 1).toString();
+			avatarEl.dataset.badge = "";
+			avatarEl.innerHTML = `<span class="player-avatar-label">${seatIndex + 1}</span>`;
 			nameEl.textContent = `Seat ${seatIndex + 1}`;
 			chipsEl.textContent = "Open seat";
 			cardsEl.innerHTML = "";
@@ -188,33 +338,34 @@ export class Renderer {
 		const isBusted = player.status === "BUSTED";
 		const isSittingOut = player.status === "SITTING_OUT";
 		const isReady = player.status === "READY";
-		const isOut = isFolded || isBusted || isSittingOut;
 		const isWinner = winnerSeats.has(player.seat);
+		const wasInHand =
+			player.contributedThisHand > 0 ||
+			player.hand.some((card) => card != null);
+		const isFoldWinLoser = handEndMode === "fold" && !isWinner && wasInHand;
+		const displayFolded = isFolded || isFoldWinLoser;
+		const isOut = displayFolded || isBusted || isSittingOut;
 
 		area.classList.toggle("is-active", isActive);
-		area.classList.toggle("is-folded", isFolded);
+		area.classList.toggle("is-folded", displayFolded);
 		area.classList.toggle("is-busted", isBusted);
 		area.classList.toggle("is-winner", isWinner);
-		cardsEl.classList.toggle("is-folded", isFolded);
+		cardsEl.classList.toggle("is-folded", displayFolded);
 		cardsEl.classList.toggle("is-winner", isWinner);
 
-		avatarEl.textContent = this.avatarText(player.name, isYou);
-
-		const markers: string[] = [];
-		if (this.game.state.buttonSeat === player.seat) markers.push("D");
-		if (isActive) markers.push("Acting");
-		if (player.status === "ALL_IN") markers.push("All-in");
-		if (isReady && !isActive) markers.push("Ready");
-		nameEl.textContent = markers.length
-			? `${player.name} (${markers.join(" | ")})`
-			: player.name;
-
-		chipsEl.textContent = `🪙 ${player.stack}`;
+		avatarEl.dataset.badge =
+			this.game.state.buttonSeat === player.seat ? "D" : "";
+		avatarEl.innerHTML = this.renderAvatar(player, seatIndex);
+		nameEl.textContent =
+			this.game.state.buttonSeat === player.seat
+				? `${player.name} • Dealer`
+				: player.name;
+		chipsEl.textContent = this.formatAmount(player.stack);
 
 		if (isWinner) {
-			statusEl.textContent = "Winner";
+			statusEl.textContent = handEndMode === "fold" ? "Won by fold" : "Winner";
 		} else if (isOut) {
-			statusEl.textContent = isFolded
+			statusEl.textContent = displayFolded
 				? "Folded"
 				: isSittingOut
 					? player.willPlayNextHand
@@ -237,11 +388,14 @@ export class Renderer {
 			if (isYou || showAllCards) {
 				cardsToRender = player.hand as Array<string | null>;
 			} else {
-				cardsToRender = player.hand.map(() => null);
+				cardsToRender = player.hand.map(() => "__back__");
 			}
 		}
 
-		if ((isFolded || isBusted || isSittingOut || isReady) && !showAllCards) {
+		if (
+			(displayFolded || isBusted || isSittingOut || isReady) &&
+			!showAllCards
+		) {
 			cardsToRender = [];
 		}
 
@@ -266,7 +420,7 @@ export class Renderer {
 	update() {
 		const s = this.game.view;
 		const players = s.players;
-		const showAllCards = s.street === "SHOWDOWN" || s.winners !== null;
+		const showAllCards = s.handEndMode === "showdown";
 		const winnerSeats = new Set((s.winners ?? []).map((winner) => winner.seat));
 
 		for (let seat = 0; seat < this.game.config.maxPlayers; seat += 1) {
@@ -275,6 +429,7 @@ export class Renderer {
 				players[seat] || null,
 				showAllCards,
 				winnerSeats,
+				s.handEndMode,
 			);
 		}
 
@@ -399,19 +554,23 @@ export class Renderer {
 		raiseBtn.textContent = "Bet / Raise";
 
 		if (s.winners !== null) {
-			actionStateEl.textContent =
-				"Hand complete. Next hand starts in 5 seconds.";
+			actionStateEl.textContent = s.manualStartRequired
+				? "Hand complete. Start the next hand when ready."
+				: "Hand complete. Next hand starts in 5 seconds.";
 		} else if (s.street === "SHOWDOWN") {
 			actionStateEl.textContent = "Showdown in progress...";
 		} else if (!heroPlayer) {
 			actionStateEl.textContent = "Join the game to take the open seat.";
 		} else if (heroPlayer.status === "SITTING_OUT") {
 			actionStateEl.textContent = heroPlayer.willPlayNextHand
-				? "You will be dealt into the next hand after the 5 second pause."
+				? s.manualStartRequired
+					? "You will be dealt into the next hand when it starts."
+					: "You will be dealt into the next hand after the 5 second pause."
 				: "You are sitting out, but your seat is still yours.";
 		} else if (heroPlayer.status === "READY") {
-			actionStateEl.textContent =
-				"Waiting for the next hand to begin after the 5 second pause.";
+			actionStateEl.textContent = s.manualStartRequired
+				? "Waiting for the next hand. Press Start Next Hand when ready."
+				: "Waiting for the next hand to begin after the 5 second pause.";
 		} else if (heroPlayer.status === "FOLDED") {
 			actionStateEl.textContent = "You folded this hand.";
 		} else if (heroPlayer.status === "BUSTED") {

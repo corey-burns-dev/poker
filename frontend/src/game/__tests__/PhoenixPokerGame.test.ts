@@ -8,7 +8,7 @@ function buildTable(overrides: Partial<BackendTable> = {}): BackendTable {
 		players: [
 			{
 				seat: 1,
-				name: "You",
+				name: "Chris",
 				stack: 4980,
 				status: "ACTIVE",
 				is_bot: false,
@@ -113,8 +113,90 @@ describe("PhoenixPokerGame", () => {
 		game.sync(table);
 
 		expect(game.view.winners).toEqual([{ seat: 0, amount: 80 }]);
-		expect(game.handResultSummary?.heading).toBe("Seat 1 wins");
+		expect(game.handResultSummary?.heading).toBe("Chris wins");
+		expect(game.handResultSummary?.lines).toEqual([
+			"Showdown. Chris drags the pot of 80.",
+		]);
 		expect(game.handResultSummary?.heroOutcome).toBe("win");
+	});
+
+	test("replaces seat numbers with player names in the action log", () => {
+		const game = new PhoenixPokerGame("player-test-1", async () => {});
+		game.sync(
+			buildTable({
+				hand_state: {
+					...buildTable().hand_state,
+					action_log: [
+						"Seat 1 calls 20.",
+						"Seat 2 raises to 80.",
+						"Action on seat 1.",
+					],
+				},
+			}),
+		);
+
+		expect(game.actionLogEntries).toEqual([
+			"Chris calls 20.",
+			"Alice raises to 80.",
+			"Action on Chris.",
+		]);
+	});
+
+	test("treats fold wins as non-showdown completions and requires manual restart for humans", () => {
+		const game = new PhoenixPokerGame("player-test-1", async () => {});
+		game.sync(
+			buildTable({
+				game_state: "waiting_for_hand",
+				players: [
+					{
+						seat: 1,
+						name: "Chris",
+						stack: 5060,
+						status: "READY",
+						is_bot: false,
+						will_play_next_hand: true,
+						player_id: "player-test-1",
+						connected: true,
+						bet_this_street: 0,
+						contributed_this_hand: 60,
+						hole_cards: ["Ah", "Ad"],
+					},
+					{
+						seat: 2,
+						name: "Alice",
+						stack: 4940,
+						status: "READY",
+						is_bot: true,
+						will_play_next_hand: true,
+						player_id: null,
+						connected: false,
+						bet_this_street: 0,
+						contributed_this_hand: 40,
+						hole_cards: ["Kh", "Qh"],
+					},
+				],
+				hand_state: {
+					...buildTable().hand_state,
+					status: "complete",
+					stage: "showdown",
+					acting_seat: null,
+					winner_seats: [1],
+					winner_amounts: { "1": 100 },
+					hand_result: {
+						heading: "Seat 1 wins by fold",
+						lines: ["Hand ends by fold. Seat 1 wins 100."],
+						hero_outcome: "win",
+					},
+				},
+			}),
+		);
+
+		expect(game.view.handEndMode).toBe("fold");
+		expect(game.view.manualStartRequired).toBe(true);
+		expect(game.handResultSummary?.heading).toBe("Chris wins by fold");
+		expect(game.handResultSummary?.lines).toEqual([
+			"Hand ends by fold. Chris wins 100.",
+		]);
 	});
 
 	test("emits deal sound events from backend deal transitions", () => {

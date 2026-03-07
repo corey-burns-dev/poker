@@ -25,6 +25,8 @@ type SeatLayout = {
 	betY: number;
 };
 
+type SeatCoordinate = Pick<SeatLayout, "seatX" | "seatY">;
+
 type LobbyTable = {
 	tableId: string;
 	name: string;
@@ -60,49 +62,73 @@ const DEFAULT_TABLE: LobbyTable = {
 	stakes: "10 / 20",
 };
 
-const DESKTOP_SEAT_LAYOUTS: SeatLayout[] = [
-	{ seatX: 50, seatY: 92, betX: 50, betY: 79 },
-	{ seatX: 23, seatY: 82, betX: 30, betY: 72 },
-	{ seatX: 10, seatY: 50, betX: 23, betY: 50 },
-	{ seatX: 23, seatY: 18, betX: 30, betY: 28 },
-	{ seatX: 50, seatY: 8, betX: 50, betY: 21 },
-	{ seatX: 77, seatY: 18, betX: 70, betY: 28 },
-	{ seatX: 90, seatY: 50, betX: 77, betY: 50 },
-	{ seatX: 77, seatY: 82, betX: 70, betY: 72 },
-];
+function createSeatLayouts(
+	coordinates: SeatCoordinate[],
+	betInsetFactor: number,
+): SeatLayout[] {
+	return coordinates.map(({ seatX, seatY }) => ({
+		seatX,
+		seatY,
+		betX: Number((50 + (seatX - 50) * betInsetFactor).toFixed(1)),
+		betY: Number((50 + (seatY - 50) * betInsetFactor).toFixed(1)),
+	}));
+}
 
-const TABLET_SEAT_LAYOUTS: SeatLayout[] = [
-	{ seatX: 50, seatY: 90, betX: 50, betY: 78 },
-	{ seatX: 22, seatY: 80, betX: 30, betY: 70 },
-	{ seatX: 11, seatY: 50, betX: 24, betY: 50 },
-	{ seatX: 22, seatY: 20, betX: 30, betY: 30 },
-	{ seatX: 50, seatY: 17, betX: 50, betY: 29 },
-	{ seatX: 78, seatY: 20, betX: 70, betY: 30 },
-	{ seatX: 89, seatY: 50, betX: 76, betY: 50 },
-	{ seatX: 78, seatY: 80, betX: 70, betY: 70 },
-];
+const DESKTOP_SEAT_LAYOUTS = createSeatLayouts(
+	[
+		{ seatX: 50, seatY: 96 },
+		{ seatX: 18, seatY: 86 },
+		{ seatX: 6, seatY: 50 },
+		{ seatX: 18, seatY: 14 },
+		{ seatX: 50, seatY: 4 },
+		{ seatX: 82, seatY: 14 },
+		{ seatX: 94, seatY: 50 },
+		{ seatX: 82, seatY: 86 },
+	],
+	0.4,
+);
 
-const MOBILE_PORTRAIT_SEAT_LAYOUTS: SeatLayout[] = [
-	{ seatX: 50, seatY: 88, betX: 50, betY: 76 },
-	{ seatX: 24, seatY: 77, betX: 31, betY: 68 },
-	{ seatX: 13, seatY: 50, betX: 24, betY: 50 },
-	{ seatX: 24, seatY: 28, betX: 31, betY: 36 },
-	{ seatX: 50, seatY: 18, betX: 50, betY: 29 },
-	{ seatX: 76, seatY: 28, betX: 69, betY: 36 },
-	{ seatX: 87, seatY: 50, betX: 76, betY: 50 },
-	{ seatX: 76, seatY: 77, betX: 69, betY: 68 },
-];
+const TABLET_SEAT_LAYOUTS = createSeatLayouts(
+	[
+		{ seatX: 50, seatY: 96 },
+		{ seatX: 18, seatY: 86 },
+		{ seatX: 6, seatY: 50 },
+		{ seatX: 18, seatY: 14 },
+		{ seatX: 50, seatY: 4 },
+		{ seatX: 82, seatY: 14 },
+		{ seatX: 94, seatY: 50 },
+		{ seatX: 82, seatY: 86 },
+	],
+	0.4,
+);
 
-const MOBILE_LANDSCAPE_SEAT_LAYOUTS: SeatLayout[] = [
-	{ seatX: 50, seatY: 84, betX: 50, betY: 71 },
-	{ seatX: 26, seatY: 73, betX: 32, betY: 64 },
-	{ seatX: 15, seatY: 50, betX: 25, betY: 50 },
-	{ seatX: 26, seatY: 29, betX: 32, betY: 37 },
-	{ seatX: 50, seatY: 21, betX: 50, betY: 33 },
-	{ seatX: 74, seatY: 29, betX: 68, betY: 37 },
-	{ seatX: 85, seatY: 50, betX: 75, betY: 50 },
-	{ seatX: 74, seatY: 73, betX: 68, betY: 64 },
-];
+const MOBILE_PORTRAIT_SEAT_LAYOUTS = createSeatLayouts(
+	[
+		{ seatX: 50, seatY: 96 },
+		{ seatX: 18, seatY: 86 },
+		{ seatX: 8, seatY: 50 },
+		{ seatX: 18, seatY: 14 },
+		{ seatX: 50, seatY: 4 },
+		{ seatX: 82, seatY: 14 },
+		{ seatX: 92, seatY: 50 },
+		{ seatX: 82, seatY: 86 },
+	],
+	0.4,
+);
+
+const MOBILE_LANDSCAPE_SEAT_LAYOUTS = createSeatLayouts(
+	[
+		{ seatX: 50, seatY: 96 },
+		{ seatX: 18, seatY: 86 },
+		{ seatX: 8, seatY: 50 },
+		{ seatX: 18, seatY: 14 },
+		{ seatX: 50, seatY: 4 },
+		{ seatX: 82, seatY: 14 },
+		{ seatX: 92, seatY: 50 },
+		{ seatX: 82, seatY: 86 },
+	],
+	0.4,
+);
 
 function pickSeatLayout(width: number, height: number): SeatLayout[] {
 	const shortLandscape = width > height && height <= 560;
@@ -626,6 +652,11 @@ function TableScreen({
 	const canAddBot =
 		backendTable?.hand_state.status !== "in_progress" && emptySeatCount > 0;
 	const canClearTable = backendTable?.hand_state.status !== "in_progress";
+	const manualNextHandRequired =
+		backendTable?.players.some(
+			(player) =>
+				!player.is_bot && player.stack > 0 && player.will_play_next_hand,
+		) ?? false;
 	const logControlDebug = useEffectEvent((message: string) => {
 		const timestamp = new Date().toLocaleTimeString("en-US", {
 			hour12: false,
@@ -908,6 +939,10 @@ function TableScreen({
 			return;
 		}
 
+		if (manualNextHandRequired) {
+			return;
+		}
+
 		autoStartAttemptRef.current = attemptKey;
 		logControlDebug(
 			`recovery: scheduling next_hand from waiting state (hand=${backendTable.hand_number} ready=${readySeats})`,
@@ -921,7 +956,7 @@ function TableScreen({
 		return () => {
 			window.clearTimeout(timer);
 		};
-	}, [backendTable, readySeats, sendActionWithDebug]);
+	}, [backendTable, manualNextHandRequired, readySeats, sendActionWithDebug]);
 
 	useEffect(() => {
 		if (!backendTable) return;
@@ -1055,6 +1090,20 @@ function TableScreen({
 							} as CSSProperties;
 							const playerId = `p${seat + 1}`;
 							const isHeroSeat = heroSeatIndex === seat;
+							const isBottom = layout.seatY > 65;
+							const isTop = layout.seatY < 35;
+							const isLeft = layout.seatX < 35;
+							const isRight = layout.seatX > 65;
+							const posClass = isBottom
+								? "pos-bottom"
+								: isTop
+									? "pos-top"
+									: isLeft
+										? "pos-left"
+										: isRight
+											? "pos-right"
+											: "";
+
 							const backendSeat = seat + 1;
 							const backendPlayer = backendTable?.players.find(
 								(player) => player.seat === backendSeat,
@@ -1077,28 +1126,25 @@ function TableScreen({
 								<div className="seat-slot" key={playerId}>
 									<div className="seat-anchor" style={style}>
 										<div
-											className={`player-area${isHeroSeat ? " is-you" : ""}${canClaimSeat ? " is-claimable" : ""}${reservedSeatLabel ? " is-reserved" : ""}`}
+											className={`player-area ${posClass}${isHeroSeat ? " is-you" : ""}${canClaimSeat ? " is-claimable" : ""}${reservedSeatLabel ? " is-reserved" : ""}`}
 											id={`seat-${seat}`}
 										>
-											<div className="avatar-row">
-												<div
-													className="player-avatar"
-													id={`${playerId}-avatar`}
-												>
-													{isHeroSeat ? "Y" : seat + 1}
-												</div>
-												<div
-													className={`player-cards${isHeroSeat ? " compact" : " compact is-avatar-stack"}`}
-													id={`${playerId}-cards`}
-												>
-													{isHeroSeat ? (
-														<>
-															<div className="card-slot hole-slot"></div>
-															<div className="card-slot hole-slot"></div>
-														</>
-													) : null}
-												</div>
+											<div
+												className={`player-cards${isHeroSeat ? " compact" : " compact is-avatar-stack"}`}
+												id={`${playerId}-cards`}
+											>
+												{isHeroSeat ? (
+													<>
+														<div className="card-slot hole-slot"></div>
+														<div className="card-slot hole-slot"></div>
+													</>
+												) : null}
 											</div>
+
+											<div className="player-avatar" id={`${playerId}-avatar`}>
+												{isHeroSeat ? "Y" : seat + 1}
+											</div>
+
 											<div className="player-info glass-panel">
 												<div className="player-name" id={`${playerId}-name`}>
 													Seat {seat + 1}
