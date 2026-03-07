@@ -104,7 +104,11 @@ describe("PhoenixPokerGame", () => {
 				winner_amounts: { "1": 80 },
 				hand_result: {
 					heading: "Seat 1 wins",
-					lines: ["Showdown. Seat 1 drags the pot of 80."],
+					lines: [
+						"Showdown. Seat 1 drags the pot of 80.",
+						"Seat 1 shows Ah Ad: Pair of Aces and wins 80.",
+						"Seat 2 shows Kh Qh: High card, King.",
+					],
 					hero_outcome: "win",
 				},
 			},
@@ -116,6 +120,8 @@ describe("PhoenixPokerGame", () => {
 		expect(game.handResultSummary?.heading).toBe("Chris wins");
 		expect(game.handResultSummary?.lines).toEqual([
 			"Showdown. Chris drags the pot of 80.",
+			"Chris shows Ah Ad: Pair of Aces and wins 80.",
+			"Alice shows Kh Qh: High card, King.",
 		]);
 		expect(game.handResultSummary?.heroOutcome).toBe("win");
 	});

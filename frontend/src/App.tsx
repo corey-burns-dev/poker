@@ -1327,9 +1327,10 @@ function TableScreen({
 							<div className="action-sidebar-copy">
 								<p className="action-sidebar-eyebrow">Hand log</p>
 								<h2
-									className={`action-sidebar-summary${handResult ? ` is-${handResult.hero_outcome}` : ""}`}
+									id="hand-result-title"
+									className="action-sidebar-summary hand-result-title"
 								>
-									{handLogSummary}
+									Hand in progress
 								</h2>
 							</div>
 						) : null}
@@ -1342,6 +1343,10 @@ function TableScreen({
 							{handLogCollapsed ? handLogSummary : "Hide Hand Log"}
 						</button>
 					</div>
+
+					<section className="hand-result-details">
+						<ul id="hand-result-lines"></ul>
+					</section>
 
 					<section className="action-log">
 						<ol id="action-log-list"></ol>

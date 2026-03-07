@@ -939,14 +939,14 @@ defmodule PokerBackend.Table do
         ),
       lines:
         [message] ++
-          Enum.map(evaluations, fn %{seat: seat, description: description} ->
+          Enum.map(evaluations, fn %{seat: seat, description: description, hole_cards: hole_cards} ->
             payout =
               case Map.get(winner_amounts, seat, 0) do
                 0 -> ""
-                amount -> " for #{amount}"
+                amount -> " and wins #{amount}"
               end
 
-            "Seat #{seat}: #{description}#{payout}"
+            "Seat #{seat} shows #{format_hole_cards(hole_cards)}: #{description}#{payout}."
           end),
       hero_outcome: hero_outcome(winner_seats)
     }
@@ -967,10 +967,18 @@ defmodule PokerBackend.Table do
     |> Enum.filter(&(&1.status in ["ACTIVE", "ALL_IN"]))
     |> Enum.map(fn player ->
       {score, description, _cards} = HandEvaluator.evaluate(player.hole_cards ++ board)
-      %{seat: player.seat, score: score, description: description}
+      %{
+        seat: player.seat,
+        score: score,
+        description: description,
+        hole_cards: Enum.reject(player.hole_cards, &is_nil/1)
+      }
     end)
     |> Enum.sort_by(& &1.seat)
   end
+
+  defp format_hole_cards([]), do: "unknown cards"
+  defp format_hole_cards(cards), do: Enum.join(cards, " ")
 
   defp build_side_pots(players) do
     levels =

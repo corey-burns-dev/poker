@@ -63,7 +63,10 @@ body {
 }
 
 .app-table {
-	overflow: hidden;
+	/* body{overflow:hidden} prevents viewport scroll.
+	   visible here allows seats outside the table-seats bounds
+	   (bottom seats Y=104%, top seats Y=8%) to render without clipping. */
+	overflow: visible;
 }
 
 .lobby-bg-shape {
@@ -389,10 +392,8 @@ body {
 }
 
 .pot-container {
-	position: absolute;
-	top: 28%;
-	left: 50%;
-	transform: translate(-50%, -50%);
+	/* in-flow inside .poker-table flex column — no absolute needed */
+	position: relative;
 	z-index: 20;
 	display: flex;
 	flex-direction: column;
@@ -460,7 +461,7 @@ body {
 .poker-table {
 	position: absolute;
 	left: 50%;
-	top: 50%;
+	top: 44%;
 	transform: translate(-50%, -50%);
 	width: var(--table-width);
 	height: var(--table-height);
@@ -476,13 +477,19 @@ body {
 		0 18px 38px rgba(0, 0, 0, 0.55),
 		inset 0 0 52px var(--table-glow),
 		inset 0 0 12px rgba(0, 0, 0, 0.4);
+	/* flex column centers pot + community cards as a unit vertically.
+	   This eliminates the pot/card overlap risk at small table heights
+	   that the old top:28% / top:50% absolute pair had. */
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: clamp(6px, 1.8vh, 22px);
 }
 
 .community-cards {
-	position: absolute;
-	left: 50%;
-	top: 50%;
-	transform: translate(-50%, -50%);
+	/* in-flow inside .poker-table flex column */
+	position: relative;
 	display: flex;
 	gap: 0.45rem;
 	z-index: 8;
@@ -491,7 +498,7 @@ body {
 .table-seats {
 	position: absolute;
 	left: 50%;
-	top: 50%;
+	top: 44%;
 	transform: translate(-50%, -50%);
 	width: var(--table-width);
 	height: var(--table-height);
@@ -586,6 +593,34 @@ body {
 }
 
 :where(.action-sidebar.is-collapsed) .action-log {
+	display: none;
+}
+
+.hand-result-details {
+	border-radius: 12px;
+	border: 1px solid rgba(255, 255, 255, 0.14);
+	background: rgba(12, 24, 40, 0.62);
+	padding: 0.48rem 0.58rem 0.54rem;
+	overflow: hidden;
+}
+
+#hand-result-lines {
+	margin: 0;
+	padding-left: 1.05rem;
+	max-height: min(11rem, 18vh);
+	overflow: auto;
+	font-size: 0.68rem;
+	line-height: 1.32;
+	color: #edf3ff;
+	display: grid;
+	gap: 0.2rem;
+}
+
+#hand-result-lines li::marker {
+	color: rgba(159, 207, 170, 0.92);
+}
+
+:where(.action-sidebar.is-collapsed) .hand-result-details {
 	display: none;
 }
 
@@ -1019,6 +1054,7 @@ body {
 	pointer-events: none;
 	z-index: 16;
 	filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.42));
+	transition: opacity 0.18s ease;
 }
 
 .seat-bet.visible {
@@ -1037,6 +1073,13 @@ body {
 /* Base placements */
 .seat-bet.pos-bottom {
 	transform: translate(calc(var(--seat-bet-side-gap) + 16px), -50%);
+}
+/* Bottom-center (no left/right): float chips to the left of the player panel,
+   on the table surface. seatY=104% puts the anchor ~20px below the table edge,
+   so we need ~-80px to clear the full chip stack height above that edge. */
+.seat-bet.pos-bottom:not(.pos-left):not(.pos-right) {
+	align-items: flex-end;
+	transform: translate(calc(-100% - var(--seat-bet-side-gap)), -80px);
 }
 .seat-bet.pos-top {
 	transform: translate(calc(var(--seat-bet-side-gap) + 16px), -50%);
@@ -1062,16 +1105,10 @@ body {
 	);
 }
 .seat-bet.pos-top.pos-left {
-	transform: translate(
-		calc(var(--seat-bet-side-gap) * 0.4),
-		calc(var(--seat-bet-side-gap) * 0.8)
-	);
+	transform: translate(calc(var(--seat-bet-side-gap) * 0.4), 14px);
 }
 .seat-bet.pos-top.pos-right {
-	transform: translate(
-		calc(-100% - var(--seat-bet-side-gap) * 0.4),
-		calc(var(--seat-bet-side-gap) * 0.8)
-	);
+	transform: translate(calc(-100% - var(--seat-bet-side-gap) * 0.4), 14px);
 }
 
 .seat-bet.is-collecting-source {
@@ -1596,9 +1633,8 @@ input[type="range"] {
 			var(--controls-space) -
 			env(safe-area-inset-bottom)
 		);
-		display: grid;
-		grid-template-columns: 1fr;
-		grid-template-rows: 1fr minmax(150px, 31dvh);
+		/* single child — no grid rows needed; revert to flex */
+		display: flex;
 		gap: 0.55rem;
 	}
 
@@ -1609,7 +1645,8 @@ input[type="range"] {
 	}
 
 	.player-area {
-		width: 98px;
+		/* was 98px — smaller than the 760px breakpoint value (144px), backwards */
+		width: 148px;
 	}
 
 	.seat-claim-btn,
@@ -1626,7 +1663,7 @@ input[type="range"] {
 	}
 
 	.player-info {
-		min-width: 96px;
+		min-width: 110px;
 		padding: 0.26rem 0.42rem;
 	}
 }
@@ -1754,6 +1791,11 @@ input[type="range"] {
 		font-size: 0.72rem;
 	}
 
+	#hand-result-lines {
+		font-size: 0.58rem;
+		max-height: min(9rem, 16vh);
+	}
+
 	#action-log-list {
 		font-size: 0.56rem;
 		padding: 0.4rem 0.52rem 0.48rem 1.28rem;
@@ -1782,7 +1824,10 @@ input[type="range"] {
 	}
 
 	.player-area {
-		width: 144px;
+		/* 128px: narrower than default 172px proportionally to the table width
+		   at this breakpoint (~86vw). Reduces side-seat clipping on 360-400px phones
+		   and keeps bet chips just outside the panel edge (--seat-bet-side-gap: 52px). */
+		width: 128px;
 		gap: 0.2rem;
 	}
 
@@ -1960,6 +2005,11 @@ input[type="range"] {
 
 	.action-sidebar-summary {
 		font-size: 0.62rem;
+	}
+
+	#hand-result-lines {
+		font-size: 0.5rem;
+		max-height: min(7rem, 15vh);
 	}
 
 	#action-log-list {
@@ -2309,5 +2359,35 @@ input[type="range"] {
 
 	.between-hand-actions {
 		justify-content: stretch;
+	}
+}
+
+/* ─── Ultrawide (≥1600px) ──────────────────────────────────────────────────
+   At these widths --table-width is already capped at 1008px (83vw > 1008px cap),
+   leaving the table swimming in empty stage space.
+   Raise the cap so the table uses the screen more intentionally.
+   Player panels scale up proportionally so the composition stays balanced. */
+@media (min-width: 1600px) {
+	:root {
+		--table-width: min(72vw, 1320px);
+		--table-height: min(62vh, 680px);
+		--seat-bet-side-gap: 96px;
+	}
+
+	.poker-table {
+		max-height: 680px;
+	}
+
+	.player-area {
+		width: clamp(172px, 11vw, 210px);
+	}
+
+	.player-avatar {
+		width: 68px;
+		height: 68px;
+	}
+
+	.player-info {
+		min-width: 130px;
 	}
 }

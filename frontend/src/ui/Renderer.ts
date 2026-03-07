@@ -182,14 +182,14 @@ export class Renderer {
 		const result = this.game.handResultSummary;
 		if (resultTitleEl) {
 			resultTitleEl.textContent = result ? result.heading : "Hand in progress";
-			resultTitleEl.className = `hand-result-title${result ? ` is-${result.heroOutcome}` : ""}`;
+			resultTitleEl.className = `action-sidebar-summary hand-result-title${result ? ` is-${result.heroOutcome}` : ""}`;
 		}
 		if (resultLinesEl) {
 			resultLinesEl.innerHTML = result
 				? result.lines
 						.map((line) => `<li>${this.escapeHtml(line)}</li>`)
 						.join("")
-				: "<li>Every action will be listed here live.</li>";
+				: "<li>Exact hand details will appear here when a hand ends.</li>";
 		}
 	}
 

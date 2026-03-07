@@ -144,6 +144,8 @@ defmodule PokerBackendWeb.TableControllerTest do
     assert length(showdown["hand_state"]["community_cards"]) == 5
     assert showdown["hand_state"]["winner_seats"] != []
     assert Enum.sum(Map.values(showdown["hand_state"]["winner_amounts"])) == 160
+    assert showdown["hand_state"]["hand_result"]["heading"] =~ "wins"
+    assert Enum.any?(showdown["hand_state"]["hand_result"]["lines"], &String.contains?(&1, "shows"))
   end
 
   test "supports clearing a table and adding bots one at a time" do
