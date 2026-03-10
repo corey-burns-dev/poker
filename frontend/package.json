@@ -1,46 +1,48 @@
 {
-	"name": "poker-frontend",
-	"version": "0.1.0",
-	"private": true,
-	"scripts": {
-		"dev": "vite --host 0.0.0.0 --port 3000",
-		"build": "vite build",
-		"preview": "vite preview --host 0.0.0.0 --port 3000",
-		"test": "bun test src/game/__tests__/PhoenixPokerGame.test.ts",
-		"test:unit": "bun test src/game/__tests__/PhoenixPokerGame.test.ts",
-		"test:e2e": "playwright test",
-		"test:e2e:headed": "playwright test --headed",
-		"lint": "biome check .",
-		"format": "biome format --write .",
-		"prepare": "true"
-	},
-	"lint-staged": {
-		"*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc,css,html}": [
-			"biome check --write --no-errors-on-unmatched"
-		]
-	},
-	"dependencies": {
-		"react": "19.2.4",
-		"react-dom": "19.2.4"
-	},
-	"devDependencies": {
-		"@biomejs/biome": "^2.4.6",
-		"@playwright/test": "^1.58.2",
-		"@types/node": "^25.3.3",
-		"@types/react": "^19.2.14",
-		"@types/react-dom": "^19.2.3",
-		"@vitejs/plugin-react": "^5.0.4",
-		"husky": "^9.1.7",
-		"lint-staged": "^16.3.2",
-		"typescript": "^5.9.3",
-		"vite": "^7.1.7"
-	},
-	"ignoreScripts": [
-		"sharp",
-		"unrs-resolver"
-	],
-	"trustedDependencies": [
-		"sharp",
-		"unrs-resolver"
-	]
+  "name": "poker-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 3000",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 3000",
+    "test": "bun test src/game/__tests__/PhoenixPokerGame.test.ts",
+    "test:unit": "bun test src/game/__tests__/PhoenixPokerGame.test.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "lint": "oxlint",
+    "format": "oxfmt",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "oxlint --fix",
+      "oxfmt"
+    ]
+  },
+  "dependencies": {
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "@types/node": "^25.4.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.4",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.3.3",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "oxlint": "^1.52.0",
+    "oxfmt": "^0.37.0"
+  },
+  "ignoreScripts": [
+    "sharp",
+    "unrs-resolver"
+  ],
+  "trustedDependencies": [
+    "sharp",
+    "unrs-resolver"
+  ]
 }
