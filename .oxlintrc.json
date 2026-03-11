@@ -1,16 +1,13 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": [
-    "eslint",
-    "oxc",
-    "unicorn"
-  ],
+  "plugins": ["eslint", "oxc", "react", "unicorn", "typescript"],
   "categories": {
     "correctness": "warn",
     "suspicious": "warn",
     "perf": "warn"
   },
   "rules": {
+    "react-in-jsx-scope": "off",
     "eslint/no-shadow": "off",
     "eslint/no-await-in-loop": "off"
   },
@@ -18,8 +15,5 @@
     "builtin": true
   },
   "globals": {},
-  "ignorePatterns": [
-    "node_modules",
-    "dist"
-  ]
+  "ignorePatterns": ["node_modules", "dist"]
 }
