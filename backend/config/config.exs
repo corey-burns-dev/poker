@@ -7,8 +7,26 @@
 # General application configuration
 import Config
 
+config :poker_backend, :scopes,
+  user: [
+    default: true,
+    module: PokerBackend.Accounts.Scope,
+    assign_key: :current_scope,
+    access_path: [:user, :id],
+    schema_key: :user_id,
+    schema_type: :id,
+    schema_table: :users,
+    test_data_fixture: PokerBackend.AccountsFixtures,
+    test_setup_helper: :register_and_log_in_user
+  ]
+
 config :poker_backend,
+  ecto_repos: [PokerBackend.Repo],
   generators: [timestamp_type: :utc_datetime]
+
+config :poker_backend, PokerBackend.Mailer, adapter: Swoosh.Adapters.Local
+
+config :swoosh, :api_client, false
 
 # Configure the endpoint
 config :poker_backend, PokerBackendWeb.Endpoint,
@@ -28,6 +46,10 @@ config :logger, :default_formatter,
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
+
+config :poker_backend, PokerBackendWeb.Plugs.TableActionRateLimit,
+  limit: 120,
+  window_seconds: 10
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

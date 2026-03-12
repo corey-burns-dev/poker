@@ -9,6 +9,7 @@ import {
 } from "react";
 import { PhoenixPokerGame } from "./game/PhoenixPokerGame";
 import { usePhoenixTable } from "./hooks/usePhoenixTable";
+import { useAuth } from "./contexts/AuthContext";
 import type { BackendTable } from "./types/backend";
 import type { Renderer } from "./ui/Renderer";
 
@@ -16,7 +17,6 @@ const MAX_SEATS = 8;
 const TABLE_HASH_PREFIX = "#/tables/";
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:4000";
 const TABLE_STORAGE_KEY = "poker.lobby_tables";
-const PROFILE_STORAGE_KEY = "poker.profile";
 
 type SeatLayout = {
 	seatX: number;
@@ -42,10 +42,6 @@ type LobbyGame = {
 	status: string;
 	lastEvent: string;
 	connectedClients: number;
-};
-
-type AuthProfile = {
-	displayName: string;
 };
 
 type TableActionPayload = {
@@ -173,33 +169,11 @@ function storeTables(tables: LobbyTable[]) {
 	window.localStorage.setItem(TABLE_STORAGE_KEY, JSON.stringify(tables));
 }
 
-function loadProfile(): AuthProfile | null {
-	if (typeof window === "undefined") return null;
-
-	const raw = window.localStorage.getItem(PROFILE_STORAGE_KEY);
-	if (!raw) return null;
-
-	try {
-		const parsed = JSON.parse(raw) as AuthProfile;
-		if (!parsed?.displayName) return null;
-		return { displayName: String(parsed.displayName) };
-	} catch {
-		return null;
-	}
-}
-
-function saveProfile(profile: AuthProfile | null) {
-	if (typeof window === "undefined") return;
-	if (profile == null) {
-		window.localStorage.removeItem(PROFILE_STORAGE_KEY);
-		return;
-	}
-	window.localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
-}
-
 async function fetchTableState(tableId: string): Promise<BackendTable | null> {
 	try {
-		const response = await fetch(`${BACKEND_URL}/api/tables/${tableId}`);
+		const response = await fetch(`${BACKEND_URL}/api/tables/${tableId}`, {
+			credentials: "include",
+		});
 		if (!response.ok) return null;
 		return (await response.json()) as BackendTable;
 	} catch {
@@ -220,6 +194,7 @@ async function postTableAction(
 		headers: {
 			"content-type": "application/json",
 		},
+		credentials: "include",
 		body: JSON.stringify(payload),
 	});
 
@@ -231,15 +206,15 @@ async function postTableAction(
 }
 
 function LobbyScreen() {
+	const { user, login, register, logout } = useAuth();
 	const [storedTables, setStoredTables] = useState<LobbyTable[]>(() =>
 		loadStoredTables(),
 	);
 	const [games, setGames] = useState<LobbyGame[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
-	const [profile, setProfile] = useState<AuthProfile | null>(() =>
-		loadProfile(),
-	);
 	const [authMode, setAuthMode] = useState<"login" | "register" | null>(null);
+	const [authEmail, setAuthEmail] = useState("");
+	const [authPassword, setAuthPassword] = useState("");
 	const [authName, setAuthName] = useState("");
 	const [createName, setCreateName] = useState("Friday Night Hold'em");
 	const [createStakes, setCreateStakes] = useState("10 / 20");
@@ -303,22 +278,21 @@ function LobbyScreen() {
 		};
 	}, [refreshGames]);
 
-	const submitAuth = useCallback(() => {
-		const name = authName.trim();
-		if (!name) return;
-		const nextProfile = { displayName: name };
-		saveProfile(nextProfile);
-		setProfile(nextProfile);
-		setAuthMode(null);
-		setAuthName("");
-	}, [authName]);
-
-	const logout = useCallback(() => {
-		saveProfile(null);
-		setProfile(null);
-		setAuthMode(null);
-		setAuthName("");
-	}, []);
+	const submitAuth = useCallback(async () => {
+		try {
+			if (authMode === "login") {
+				await login(authEmail, authPassword);
+			} else if (authMode === "register") {
+				await register(authEmail, authName, authPassword);
+			}
+			setAuthMode(null);
+			setAuthEmail("");
+			setAuthPassword("");
+			setAuthName("");
+		} catch (error) {
+			setLobbyMessage(error instanceof Error ? error.message : "Auth failed");
+		}
+	}, [authMode, authEmail, authPassword, authName, login, register]);
 
 	const createTable = useCallback(async () => {
 		setCreateBusy(true);
@@ -359,12 +333,12 @@ function LobbyScreen() {
 				</div>
 
 				<div className="top-actions">
-					{profile ? (
+					{user ? (
 						<>
 							<button type="button" className="btn tiny profile-btn">
-								Profile: {profile.displayName}
+								{user.username} (🪙 {user.balance})
 							</button>
-							<button type="button" className="btn tiny" onClick={logout}>
+							<button type="button" className="btn tiny" onClick={() => void logout()}>
 								Logout
 							</button>
 						</>
@@ -461,24 +435,41 @@ function LobbyScreen() {
 							<div className="auth-card glass-panel">
 								<h2>{authMode === "login" ? "Login" : "Register"}</h2>
 								<p>
-									Auth is local for now. This sets your display name for table
-									actions.
+									Enter your credentials to {authMode === "login" ? "login" : "register"}.
 								</p>
 								<label>
-									Display Name
+									Email
 									<input
-										type="text"
-										value={authName}
-										onChange={(event) => setAuthName(event.target.value)}
+										type="email"
+										value={authEmail}
+										onChange={(event) => setAuthEmail(event.target.value)}
+									/>
+								</label>
+								{authMode === "register" ? (
+									<label>
+										Display Name
+										<input
+											type="text"
+											value={authName}
+											onChange={(event) => setAuthName(event.target.value)}
+										/>
+									</label>
+								) : null}
+								<label>
+									Password
+									<input
+										type="password"
+										value={authPassword}
+										onChange={(event) => setAuthPassword(event.target.value)}
 									/>
 								</label>
 								<div className="auth-actions">
 									<button
 										type="button"
 										className="btn primary tiny"
-										onClick={submitAuth}
+										onClick={() => void submitAuth()}
 									>
-										Continue
+										{authMode === "login" ? "Login" : "Register"}
 									</button>
 									<button
 										type="button"
@@ -606,11 +597,12 @@ function TableScreen({
 		backendTable?.players.filter((player) => player.is_bot && player.stack <= 0)
 			.length ?? 0;
 	const ownedPlayer =
-		backendTable?.players.find((player) => player.player_id === playerId) ??
-		null;
+		backendTable?.players.find(
+			(player) => String(player.player_id) === String(playerId),
+		) ?? null;
 	const pendingPlayer =
 		backendTable?.pending_players.find(
-			(player) => player.player_id === playerId,
+			(player) => String(player.player_id) === String(playerId),
 		) ?? null;
 	const heroSeatIndex = ownedPlayer ? ownedPlayer.seat - 1 : null;
 	const reservedSeats = new Set(
@@ -619,7 +611,9 @@ function TableScreen({
 	const reservedSeatLabels = new Map(
 		backendTable?.pending_players.map((player) => [
 			player.desired_seat,
-			player.player_id === playerId ? "Reserved for you" : "Reserved",
+			String(player.player_id) === String(playerId)
+				? "Reserved for you"
+				: "Reserved",
 		]) ?? [],
 	);
 	const readySeats =
@@ -945,7 +939,7 @@ function TableScreen({
 		if (!backendTable) return;
 
 		const hero = backendTable.players.find(
-			(player) => player.player_id === playerId,
+			(player) => String(player.player_id) === String(playerId),
 		);
 		const actionState =
 			document.getElementById("action-state")?.textContent?.trim() || "n/a";

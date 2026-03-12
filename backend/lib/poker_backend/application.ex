@@ -6,11 +6,13 @@ defmodule PokerBackend.Application do
   @impl true
   def start(_type, _args) do
     children = [
+      PokerBackend.Repo,
       PokerBackendWeb.Telemetry,
       {DNSCluster, query: Application.get_env(:poker_backend, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: PokerBackend.PubSub},
       {Registry, keys: :unique, name: PokerBackend.TableRegistry},
       {PokerBackend.TableSupervisor, []},
+      {Task.Supervisor, name: PokerBackend.TaskSupervisor},
       PokerBackendWeb.Endpoint
     ]
 

@@ -33,9 +33,23 @@ services:
     command: sh -lc "mix deps.get && mix phx.server"
     ports:
       - "4000:4000"
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
     environment:
       PORT: 4000
       PHX_SERVER: "true"
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/poker_dev
+      DB_HOSTNAME: db
+      PHX_CODE_RELOADER: "${PHX_CODE_RELOADER:-true}"
+      PHX_DEBUG_ERRORS: "${PHX_DEBUG_ERRORS:-true}"
+      PHX_LIVE_RELOAD: "${PHX_LIVE_RELOAD:-true}"
+      PHX_DEV_ROUTES: "${PHX_DEV_ROUTES:-true}"
+      PHX_EXPENSIVE_RUNTIME_CHECKS: "${PHX_EXPENSIVE_RUNTIME_CHECKS:-true}"
+      TABLE_ACTION_RATE_LIMIT_DISABLED: "${TABLE_ACTION_RATE_LIMIT_DISABLED:-false}"
+      TABLE_ACTION_RATE_LIMIT_LIMIT: "${TABLE_ACTION_RATE_LIMIT_LIMIT:-120}"
+      TABLE_ACTION_RATE_LIMIT_WINDOW_SECONDS: "${TABLE_ACTION_RATE_LIMIT_WINDOW_SECONDS:-10}"
     volumes:
       - .:/app
       - backend_deps:/app/backend/deps
@@ -46,7 +60,27 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: poker_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 volumes:
   backend_deps:
   backend_build:
+  postgres_data:

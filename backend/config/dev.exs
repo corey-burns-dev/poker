@@ -1,5 +1,26 @@
 import Config
 
+truthy? = fn
+  nil, default -> default
+  value, _default -> String.downcase(value) in ["1", "true", "yes", "on"]
+end
+
+enable_code_reloader = truthy?.(System.get_env("PHX_CODE_RELOADER"), true)
+enable_debug_errors = truthy?.(System.get_env("PHX_DEBUG_ERRORS"), enable_code_reloader)
+enable_live_reload = truthy?.(System.get_env("PHX_LIVE_RELOAD"), enable_code_reloader)
+enable_dev_routes = truthy?.(System.get_env("PHX_DEV_ROUTES"), true)
+enable_expensive_runtime_checks = truthy?.(System.get_env("PHX_EXPENSIVE_RUNTIME_CHECKS"), true)
+
+# Configure your database
+config :poker_backend, PokerBackend.Repo,
+  username: "postgres",
+  password: "postgres",
+  hostname: System.get_env("DB_HOSTNAME") || "localhost",
+  database: "poker_dev",
+  stacktrace: true,
+  show_sensitive_data_on_connection_error: true,
+  pool_size: 10
+
 # For development, we disable any cache and enable
 # debugging and code reloading.
 #
@@ -12,8 +33,8 @@ config :poker_backend, PokerBackendWeb.Endpoint,
   # Change to `ip: {127, 0, 0, 1}` to allow access only from the server machine.
   http: [ip: {0, 0, 0, 0}],
   check_origin: false,
-  code_reloader: true,
-  debug_errors: true,
+  code_reloader: enable_code_reloader,
+  debug_errors: enable_debug_errors,
   secret_key_base: "/i/E4TDnoiyk96jZUd089LS15RkMinsJ2Hbso496OD9PoXYS8ESXriBdkMQX3hsO",
   watchers: []
 
@@ -40,23 +61,24 @@ config :poker_backend, PokerBackendWeb.Endpoint,
 # configured to run both http and https servers on
 # different ports.
 
-# Reload browser tabs when matching files change.
-config :poker_backend, PokerBackendWeb.Endpoint,
-  live_reload: [
-    web_console_logger: true,
-    patterns: [
-      # Static assets, except user uploads
-      ~r"priv/static/(?!uploads/).*\.(js|css|png|jpeg|jpg|gif|svg)$"E,
-      # Gettext translations
-      ~r"priv/gettext/.*\.po$"E,
-      # Router, Controllers, LiveViews and LiveComponents
-      ~r"lib/poker_backend_web/router\.ex$"E,
-      ~r"lib/poker_backend_web/(controllers|live|components)/.*\.(ex|heex)$"E
+if enable_live_reload do
+  config :poker_backend, PokerBackendWeb.Endpoint,
+    live_reload: [
+      web_console_logger: true,
+      patterns: [
+        # Static assets, except user uploads
+        ~r"priv/static/(?!uploads/).*\.(js|css|png|jpeg|jpg|gif|svg)$"E,
+        # Gettext translations
+        ~r"priv/gettext/.*\.po$"E,
+        # Router, Controllers, LiveViews and LiveComponents
+        ~r"lib/poker_backend_web/router\.ex$"E,
+        ~r"lib/poker_backend_web/(controllers|live|components)/.*\.(ex|heex)$"E
+      ]
     ]
-  ]
+end
 
 # Enable dev routes for dashboard and mailbox
-config :poker_backend, dev_routes: true
+config :poker_backend, dev_routes: enable_dev_routes
 
 # Do not include metadata nor timestamps in development logs
 config :logger, :default_formatter, format: "[$level] $message\n"
@@ -74,4 +96,4 @@ config :phoenix_live_view,
   debug_heex_annotations: true,
   debug_attributes: true,
   # Enable helpful, but potentially expensive runtime checks
-  enable_expensive_runtime_checks: true
+  enable_expensive_runtime_checks: enable_expensive_runtime_checks

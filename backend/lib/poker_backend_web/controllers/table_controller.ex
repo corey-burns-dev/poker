@@ -4,6 +4,8 @@ defmodule PokerBackendWeb.TableController do
   @max_table_id_length 64
   @table_id_pattern ~r/^[a-zA-Z0-9_\-]+$/
 
+  plug PokerBackendWeb.Plugs.TableActionRateLimit when action in [:update_action]
+
   def show(conn, %{"table_id" => table_id}) do
     if valid_table_id?(table_id) do
       {:ok, _pid} = PokerBackend.Table.ensure_started(table_id)

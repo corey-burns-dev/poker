@@ -1,0 +1,23 @@
+{
+  "scenarios": {
+    "players": {
+      "executor": "ramping-vus",
+      "startVUs": 0,
+      "gracefulRampDown": "90s",
+      "stages": [
+        { "duration": "30s", "target": 24 },
+        { "duration": "90s", "target": 24 },
+        { "duration": "90s", "target": 0 }
+      ],
+      "gracefulStop": "20s"
+    }
+  },
+  "thresholds": {
+    "http_req_failed": ["rate<0.02"],
+    "http_req_duration": ["p(95)<600"],
+    "ws_connecting": ["p(95)<1000"],
+    "poker_sessions_connected": ["rate>0.98"],
+    "poker_action_errors": ["rate<0.02"],
+    "poker_join_latency": ["p(95)<2000"]
+  }
+}

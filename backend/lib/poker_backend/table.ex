@@ -1,7 +1,9 @@
 defmodule PokerBackend.Table do
   use GenServer
+  require Logger
 
   alias PokerBackend.HandEvaluator
+  alias PokerBackend.Accounts
   alias Phoenix.PubSub
 
   @seats [1, 2, 3, 4, 5, 6, 7, 8]
@@ -10,6 +12,7 @@ defmodule PokerBackend.Table do
   @starting_stack 5000
   @auto_hand_delay 5_000
   @auto_bot_delay 450
+  @action_log_limit 48
   @bot_names %{
     1 => "Alice",
     2 => "Bob",
@@ -79,12 +82,17 @@ defmodule PokerBackend.Table do
 
   def ensure_started(table_id) do
     case Registry.lookup(PokerBackend.TableRegistry, table_id) do
-      [] ->
-        spec = {__MODULE__, table_id: table_id}
-        DynamicSupervisor.start_child(PokerBackend.TableSupervisor, spec)
-
       [{pid, _value}] ->
         {:ok, pid}
+
+      [] ->
+        spec = {__MODULE__, table_id: table_id}
+
+        case DynamicSupervisor.start_child(PokerBackend.TableSupervisor, spec) do
+          {:ok, pid} -> {:ok, pid}
+          {:error, {:already_started, pid}} -> {:ok, pid}
+          error -> error
+        end
     end
   end
 
@@ -168,7 +176,7 @@ defmodule PokerBackend.Table do
   @impl true
   def handle_info(:auto_progress, state) do
     base_state = Map.put(state, :auto_tick_scheduled, false)
-    next_state = auto_progress(base_state) |> maybe_schedule_auto_progress()
+    next_state = safe_auto_progress(base_state) |> maybe_schedule_auto_progress()
 
     if next_state != state do
       broadcast_state(next_state)
@@ -254,6 +262,7 @@ defmodule PokerBackend.Table do
       community_cards: [],
       deck: [],
       action_log: ["Table ready. First hand starting shortly."],
+      action_log_seq: 1,
       last_action: "waiting_for_next_hand",
       acted_seats: [],
       winner_seats: [],
@@ -295,10 +304,7 @@ defmodule PokerBackend.Table do
           |> Map.put(:connected, true)
         end)
         |> put_in([:last_event], "player_reconnected")
-        |> update_in(
-          [:hand_state, :action_log],
-          &append_log(&1, "#{player_name} is seated at seat #{player.seat}.")
-        )
+        |> append_hand_log("#{player_name} is seated at seat #{player.seat}.")
 
       pending = Enum.find(state.pending_players, &(&1.player_id == player_id)) ->
         state
@@ -310,17 +316,26 @@ defmodule PokerBackend.Table do
           |> Map.put(:desired_seat, requested_seat)
         end)
         |> put_in([:last_event], "player_waiting")
-        |> update_in(
-          [:hand_state, :action_log],
-          &append_log(&1, "#{pending.name} is waiting for seat #{requested_seat}.")
-        )
+        |> append_hand_log("#{pending.name} is waiting for seat #{requested_seat}.")
 
       true ->
         seat_player = get_player!(state.players, requested_seat)
 
         if seat_claim_immediate?(state, seat_player) do
+          db_balance =
+            if is_integer(player_id) do
+              case Accounts.get_user(player_id) do
+                nil -> nil
+                user -> user.balance
+              end
+            end
+
           replacement_stack =
-            if(seat_player.stack > 0, do: seat_player.stack, else: @starting_stack)
+            cond do
+              db_balance -> db_balance
+              seat_player.stack > 0 -> seat_player.stack
+              true -> @starting_stack
+            end
 
           next_status =
             cond do
@@ -357,7 +372,7 @@ defmodule PokerBackend.Table do
               "#{player_name} is seated at seat #{requested_seat}."
             end
 
-          update_in(next_state, [:hand_state, :action_log], &append_log(&1, message))
+          append_hand_log(next_state, message)
         else
           pending_player = %{
             player_id: player_id,
@@ -371,10 +386,7 @@ defmodule PokerBackend.Table do
           state
           |> update_in([:pending_players], &(&1 ++ [pending_player]))
           |> put_in([:last_event], "player_joined_waitlist")
-          |> update_in(
-            [:hand_state, :action_log],
-            &append_log(&1, "#{player_name} reserved seat #{requested_seat} for the next hand.")
-          )
+          |> append_hand_log("#{player_name} reserved seat #{requested_seat} for the next hand.")
         end
     end
   end
@@ -406,16 +418,13 @@ defmodule PokerBackend.Table do
             "#{player.name} is ready for the next hand."
           end
 
-        update_in(updated_state, [:hand_state, :action_log], &append_log(&1, message))
+        append_hand_log(updated_state, message)
 
       Enum.any?(state.pending_players, &(&1.player_id == player_id)) ->
         state
         |> update_pending_player(player_id, &Map.put(&1, :will_play_next_hand, true))
         |> put_in([:last_event], "pending_player_sitting_in")
-        |> update_in(
-          [:hand_state, :action_log],
-          &append_log(&1, "You will be dealt in once a seat opens.")
-        )
+        |> append_hand_log("You will be dealt in once a seat opens.")
 
       true ->
         invalid_action(state, "player_not_joined")
@@ -451,13 +460,13 @@ defmodule PokerBackend.Table do
             "#{player.name} is sitting out."
           end
 
-        update_in(updated_state, [:hand_state, :action_log], &append_log(&1, message))
+        append_hand_log(updated_state, message)
 
       Enum.any?(state.pending_players, &(&1.player_id == player_id)) ->
         state
         |> update_pending_player(player_id, &Map.put(&1, :will_play_next_hand, false))
         |> put_in([:last_event], "pending_player_sitting_out")
-        |> update_in([:hand_state, :action_log], &append_log(&1, "You are waiting for a seat."))
+        |> append_hand_log("You are waiting for a seat.")
 
       true ->
         invalid_action(state, "player_not_joined")
@@ -486,10 +495,7 @@ defmodule PokerBackend.Table do
             state
             |> update_player(player.seat, &Map.put(&1, :show_cards, show_cards))
             |> put_in([:last_event], "player_card_visibility_changed")
-            |> update_in(
-              [:hand_state, :action_log],
-              &append_log(&1, "#{player.name} #{visibility_label} their cards.")
-            )
+            |> append_hand_log("#{player.name} #{visibility_label} their cards.")
         end
 
       true ->
@@ -505,6 +511,7 @@ defmodule PokerBackend.Table do
         state.hand_state.hand_number
         |> initial_hand_state(state.hand_state.dealer_seat)
         |> Map.put(:action_log, ["Table cleared. Add bots or reserve a seat to begin."])
+        |> Map.put(:action_log_seq, 1)
 
       %{
         state
@@ -543,10 +550,7 @@ defmodule PokerBackend.Table do
             build_bot_player(seat_player.seat, @starting_stack)
           end)
           |> put_in([:last_event], "bot_added_seat_#{seat_player.seat}")
-          |> update_in(
-            [:hand_state, :action_log],
-            &append_log(&1, "Bot added to seat #{seat_player.seat}.")
-          )
+          |> append_hand_log("Bot added to seat #{seat_player.seat}.")
       end
     end
   end
@@ -588,6 +592,7 @@ defmodule PokerBackend.Table do
           "Blinds posted: #{@small_blind} / #{@big_blind}.",
           "Action on seat #{acting_seat}."
         ],
+        action_log_seq: 3,
         last_action: "hand_started",
         acted_seats: [],
         winner_seats: [],
@@ -752,25 +757,24 @@ defmodule PokerBackend.Table do
   defp update_acted_after_raise(state, seat, false), do: mark_acted(state, seat)
 
   defp contribute(state, seat, amount) do
-    update_player(state, seat, fn player ->
-      paid = min(player.stack, max(amount, 0))
+    player = get_player!(state.players, seat)
+    paid = min(player.stack, max(amount, 0))
 
-      player
-      |> Map.put(:stack, player.stack - paid)
-      |> Map.put(:bet_this_street, player.bet_this_street + paid)
-      |> Map.put(:contributed_this_hand, player.contributed_this_hand + paid)
+    state
+    |> update_player(seat, fn current ->
+      current
+      |> Map.put(:stack, current.stack - paid)
+      |> Map.put(:bet_this_street, current.bet_this_street + paid)
+      |> Map.put(:contributed_this_hand, current.contributed_this_hand + paid)
       |> maybe_all_in()
     end)
-    |> update_in(
-      [:hand_state, :pot],
-      &(&1 + min(get_player!(state.players, seat).stack, max(amount, 0)))
-    )
+    |> update_in([:hand_state, :pot], &(&1 + paid))
   end
 
   defp invalid_action(state, reason) do
     state
     |> put_in([:last_event], reason)
-    |> update_in([:hand_state, :action_log], &append_log(&1, "Rejected action: #{reason}"))
+    |> append_hand_log("Rejected action: #{reason}")
   end
 
   defp advance_after_action(state, seat, message, action) do
@@ -778,7 +782,7 @@ defmodule PokerBackend.Table do
       state
       |> put_in([:hand_state, :last_action], action)
       |> put_in([:last_event], message)
-      |> update_in([:hand_state, :action_log], &append_log(&1, message))
+      |> append_hand_log(message)
 
     cond do
       one_contender_left?(next_state.players) ->
@@ -813,23 +817,27 @@ defmodule PokerBackend.Table do
       {community_cards, deck} =
         deal_community_cards(state.hand_state.community_cards, state.hand_state.deck, next_stage)
 
-      acting_seat = next_actionable_seat(players, state.hand_state.dealer_seat)
+      acting_seat =
+        if runout_only?(players) do
+          nil
+        else
+          next_actionable_seat(players, state.hand_state.dealer_seat)
+        end
+
       message = "#{String.capitalize(next_stage)} dealt. Action on seat #{acting_seat || "none"}."
 
-      updated_state =
-        state
-        |> Map.put(:players, players)
-        |> put_in([:hand_state, :stage], next_stage)
-        |> put_in([:hand_state, :community_cards], community_cards)
-        |> put_in([:hand_state, :deck], deck)
-        |> put_in([:hand_state, :acting_seat], acting_seat)
-        |> put_in([:hand_state, :current_bet], 0)
-        |> put_in([:hand_state, :acted_seats], [])
-        |> put_in([:hand_state, :minimum_raise], @big_blind)
-        |> put_in([:last_event], "#{next_stage}_dealt")
-        |> update_in([:hand_state, :action_log], &append_log(&1, message))
-
-      if is_nil(acting_seat), do: advance_street_or_showdown(updated_state), else: updated_state
+      state
+      |> Map.put(:players, players)
+      |> put_in([:hand_state, :stage], next_stage)
+      |> put_in([:hand_state, :community_cards], community_cards)
+      |> put_in([:hand_state, :deck], deck)
+      |> put_in([:hand_state, :acting_seat], acting_seat)
+      |> put_in([:hand_state, :current_bet], 0)
+      |> put_in([:hand_state, :acted_seats], [])
+      |> put_in([:hand_state, :minimum_raise], @big_blind)
+      |> put_in([:last_event], "#{next_stage}_dealt")
+      |> append_hand_log(message)
+      |> maybe_continue_runout()
     end
   end
 
@@ -850,6 +858,8 @@ defmodule PokerBackend.Table do
       end)
       |> prune_disconnected_players()
 
+    persist_human_balances(players, state.table_id)
+
     message = "Hand ends by fold. Seat #{winner_seat} wins #{pot}."
 
     hand_state =
@@ -867,10 +877,11 @@ defmodule PokerBackend.Table do
         lines: [message],
         hero_outcome: hero_outcome([winner_seat])
       })
-      |> update_in(
-        [:action_log],
+      |> Map.update!(
+        :action_log,
         &(&1 |> append_log(message) |> append_log(next_hand_prompt(state)))
       )
+      |> Map.update!(:action_log_seq, &(&1 + 2))
 
     %{
       state
@@ -900,6 +911,8 @@ defmodule PokerBackend.Table do
       end)
       |> prune_disconnected_players()
 
+    persist_human_balances(players, state.table_id)
+
     message = showdown_message(winner_seats, winner_amounts)
 
     hand_state =
@@ -914,10 +927,11 @@ defmodule PokerBackend.Table do
         :hand_result,
         build_hand_result(winner_seats, winner_amounts, message, evaluations)
       )
-      |> update_in(
-        [:action_log],
+      |> Map.update!(
+        :action_log,
         &(&1 |> append_log(message) |> append_log(next_hand_prompt(state)))
       )
+      |> Map.update!(:action_log_seq, &(&1 + 2))
 
     %{
       state
@@ -967,6 +981,7 @@ defmodule PokerBackend.Table do
     |> Enum.filter(&(&1.status in ["ACTIVE", "ALL_IN"]))
     |> Enum.map(fn player ->
       {score, description, _cards} = HandEvaluator.evaluate(player.hole_cards ++ board)
+
       %{
         seat: player.seat,
         score: score,
@@ -1091,6 +1106,12 @@ defmodule PokerBackend.Table do
       Enum.all?(actionable, &Enum.member?(state.hand_state.acted_seats, &1.seat))
   end
 
+  defp runout_only?(players) do
+    active_count = Enum.count(players, &(&1.status == "ACTIVE"))
+    all_in_count = Enum.count(players, &(&1.status == "ALL_IN"))
+    all_in_count > 0 and active_count <= 1
+  end
+
   defp reset_players_for_hand(players) do
     Enum.map(players, fn player ->
       cond do
@@ -1169,7 +1190,14 @@ defmodule PokerBackend.Table do
     Enum.map(players, fn player -> if player.seat == seat, do: fun.(player), else: player end)
   end
 
-  defp append_log(entries, line), do: entries |> Kernel.++([line]) |> Enum.take(-16)
+  defp append_log(entries, line),
+    do: entries |> Kernel.++([line]) |> Enum.take(-@action_log_limit)
+
+  defp append_hand_log(state, line) do
+    state
+    |> update_in([:hand_state, :action_log], &append_log(&1, line))
+    |> update_in([:hand_state, :action_log_seq], &((&1 || 0) + 1))
+  end
 
   defp normalize_amount(%{"amount" => amount}) when is_number(amount), do: round(amount)
 
@@ -1573,9 +1601,16 @@ defmodule PokerBackend.Table do
     Enum.find(seats, &(&1 > current_seat)) || hd(seats)
   end
 
+  defp normalize_player_id(%{"player_id" => player_id}) when is_number(player_id),
+    do: round(player_id)
+
   defp normalize_player_id(%{"player_id" => player_id}) when is_binary(player_id) do
     trimmed = String.trim(player_id)
-    if trimmed == "", do: nil, else: trimmed
+
+    case Integer.parse(trimmed) do
+      {id, ""} -> id
+      _ -> if trimmed == "", do: nil, else: trimmed
+    end
   end
 
   defp normalize_player_id(_payload), do: nil
@@ -1668,7 +1703,7 @@ defmodule PokerBackend.Table do
   defp maybe_fold_disconnected_actor(state, player) do
     if state.hand_state.status == "in_progress" and state.hand_state.acting_seat == player.seat and
          player.status == "ACTIVE" do
-      apply_action(state, "fold", %{})
+      apply_action(state, "fold", %{"player_id" => player.player_id})
     else
       state
     end
@@ -1759,16 +1794,26 @@ defmodule PokerBackend.Table do
   end
 
   defp deal_community_cards(board, deck, next_stage) do
-    draw_count =
+    {draw_count, expected_board_size} =
       case next_stage do
-        "flop" -> 3
-        "turn" -> 1
-        "river" -> 1
-        _ -> 0
+        "flop" -> {3, 3}
+        "turn" -> {1, 4}
+        "river" -> {1, 5}
+        _ -> {0, length(board)}
       end
 
+    if length(deck) < draw_count do
+      raise ArgumentError, "insufficient cards to deal #{next_stage}"
+    end
+
     {drawn_cards, remaining_deck} = Enum.split(deck, draw_count)
-    {board ++ drawn_cards, remaining_deck}
+    next_board = board ++ drawn_cards
+
+    if length(next_board) != expected_board_size do
+      raise ArgumentError, "unexpected board size after #{next_stage}"
+    end
+
+    {next_board, remaining_deck}
   end
 
   defp shuffled_deck do
@@ -1884,6 +1929,69 @@ defmodule PokerBackend.Table do
       true ->
         state
     end
+  end
+
+  defp safe_auto_progress(state) do
+    auto_progress(state)
+  rescue
+    error ->
+      Logger.error("""
+      auto_progress failed for table #{state.table_id}: #{Exception.message(error)}
+      #{Exception.format_stacktrace(__STACKTRACE__)}
+      """)
+
+      state
+  end
+
+  defp maybe_continue_runout(%{hand_state: %{acting_seat: nil}} = state),
+    do: advance_street_or_showdown(state)
+
+  defp maybe_continue_runout(state), do: state
+
+  defp persist_human_balances(players, table_id) do
+    humans_to_persist =
+      Enum.filter(players, fn player ->
+        not player.is_bot and is_integer(player.player_id)
+      end)
+
+    if humans_to_persist != [] do
+      case Task.Supervisor.start_child(PokerBackend.TaskSupervisor, fn ->
+             Enum.each(humans_to_persist, fn player ->
+               persist_player_balance(player, table_id)
+             end)
+           end) do
+        {:ok, _pid} ->
+          :ok
+
+        {:error, reason} ->
+          Logger.warning(
+            "failed to start balance persistence task for table #{table_id}: #{inspect(reason)}"
+          )
+      end
+    end
+  end
+
+  defp persist_player_balance(player, table_id) do
+    case Accounts.get_user(player.player_id) do
+      nil ->
+        :ok
+
+      user ->
+        case Accounts.update_user_balance(user, player.stack) do
+          {:ok, _user} ->
+            :ok
+
+          {:error, changeset} ->
+            Logger.warning(
+              "failed to persist balance for player #{player.player_id} at table #{table_id}: #{inspect(changeset.errors)}"
+            )
+        end
+    end
+  rescue
+    error ->
+      Logger.warning(
+        "failed to persist balance for player #{player.player_id} at table #{table_id}: #{Exception.message(error)}"
+      )
   end
 
   defp auto_start_next_hand?(state) do

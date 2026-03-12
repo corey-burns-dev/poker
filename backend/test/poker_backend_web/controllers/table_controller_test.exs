@@ -17,6 +17,11 @@ defmodule PokerBackendWeb.TableControllerTest do
     |> json_response(200)
   end
 
+  defp action_conn(table_id, action, params \\ %{}, remote_ip \\ {127, 0, 0, 1}) do
+    conn = %{build_conn() | remote_ip: remote_ip}
+    post(conn, ~p"/api/tables/#{table_id}/actions?action=#{action}", params)
+  end
+
   defp dealt_cards(state) do
     hole_cards =
       state["players"]
@@ -145,7 +150,11 @@ defmodule PokerBackendWeb.TableControllerTest do
     assert showdown["hand_state"]["winner_seats"] != []
     assert Enum.sum(Map.values(showdown["hand_state"]["winner_amounts"])) == 160
     assert showdown["hand_state"]["hand_result"]["heading"] =~ "wins"
-    assert Enum.any?(showdown["hand_state"]["hand_result"]["lines"], &String.contains?(&1, "shows"))
+
+    assert Enum.any?(
+             showdown["hand_state"]["hand_result"]["lines"],
+             &String.contains?(&1, "shows")
+           )
   end
 
   test "supports clearing a table and adding bots one at a time" do
@@ -165,6 +174,65 @@ defmodule PokerBackendWeb.TableControllerTest do
 
     assert seat_four["is_bot"]
     assert seat_four["stack"] == 5000
+  end
+
+  test "rate limits table action bursts without affecting table reads" do
+    previous_config =
+      Application.get_env(:poker_backend, PokerBackendWeb.Plugs.TableActionRateLimit)
+
+    Application.put_env(
+      :poker_backend,
+      PokerBackendWeb.Plugs.TableActionRateLimit,
+      limit: 2,
+      window_seconds: 60
+    )
+
+    on_exit(fn ->
+      Application.put_env(
+        :poker_backend,
+        PokerBackendWeb.Plugs.TableActionRateLimit,
+        previous_config || []
+      )
+    end)
+
+    table_id = unique_table_id()
+
+    assert action_conn(table_id, "clear_table") |> json_response(200)
+    assert action_conn(table_id, "add_bot", %{"seat" => 1}) |> json_response(200)
+
+    throttled =
+      action_conn(table_id, "add_bot", %{"seat" => 2})
+      |> response(429)
+
+    assert throttled =~ "\"error\":\"rate_limited\""
+    assert fetch_table(table_id)["table_id"] == table_id
+  end
+
+  test "allows bursts when the action rate limiter is disabled" do
+    previous_config =
+      Application.get_env(:poker_backend, PokerBackendWeb.Plugs.TableActionRateLimit)
+
+    Application.put_env(
+      :poker_backend,
+      PokerBackendWeb.Plugs.TableActionRateLimit,
+      enabled: false,
+      limit: 1,
+      window_seconds: 60
+    )
+
+    on_exit(fn ->
+      Application.put_env(
+        :poker_backend,
+        PokerBackendWeb.Plugs.TableActionRateLimit,
+        previous_config || []
+      )
+    end)
+
+    table_id = unique_table_id()
+
+    assert action_conn(table_id, "clear_table") |> json_response(200)
+    assert action_conn(table_id, "add_bot", %{"seat" => 1}) |> json_response(200)
+    assert action_conn(table_id, "add_bot", %{"seat" => 2}) |> json_response(200)
   end
 
   test "seats a human immediately and deals them into the next hand" do

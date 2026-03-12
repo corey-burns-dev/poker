@@ -33,3 +33,19 @@ Retrain bots:
 make training-retrain
 make training-retrain-holdem
 ```
+
+## Stress testing
+
+The repo now includes a k6-based multiplayer stress harness under `load/` that simulates one websocket-connected human per VU. Each table captain clears the table, fills the remaining seats with backend bots, and keeps hands cycling so you can measure mixed human-plus-bot load.
+
+Quick start:
+
+```bash
+make stress-stack-up
+make stress-low
+make stress-thousands
+```
+
+Artifacts land in `tmp/stress-runs/` with a `metadata.json` and k6 `summary.json` for each run. Override the default layout with environment variables such as `BASE_URL`, `HUMANS_PER_TABLE`, and `SESSION_SECONDS`.
+
+More detail: `load/README.md`

@@ -43,6 +43,7 @@ defmodule PokerBackendWeb do
       use Gettext, backend: PokerBackendWeb.Gettext
 
       import Plug.Conn
+      import PokerBackendWeb.UserAuth
 
       unquote(verified_routes())
     end

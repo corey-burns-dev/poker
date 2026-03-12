@@ -115,12 +115,12 @@ defmodule PokerBackend.BotAiTest do
     assert calling_station_state.last_event == "Seat 2 calls 20."
 
     {table_id, pid} = start_table()
-    force_preflop_spot(pid, 6, ["As", "9d"])
-    seed_bot_rng(pid, {1, 1, 6})
+    force_preflop_spot(pid, 7, ["As", "9d"])
+    seed_bot_rng(pid, {1, 1, 7})
 
     nit_state = run_bot_turn(pid, table_id)
 
-    assert nit_state.last_event == "Seat 6 folds."
-    assert nit_state.hand_state.acting_seat != 6
+    assert nit_state.last_event == "Seat 7 folds."
+    assert nit_state.hand_state.acting_seat != 7
   end
 end

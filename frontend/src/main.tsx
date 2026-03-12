@@ -3,6 +3,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./app/style.css";
+import { AuthProvider } from "./contexts/AuthContext";
 
 class ErrorBoundary extends React.Component<
 	{ children: ReactNode },
@@ -66,7 +67,9 @@ class ErrorBoundary extends React.Component<
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
 	<React.StrictMode>
 		<ErrorBoundary>
-			<App />
+			<AuthProvider>
+				<App />
+			</AuthProvider>
 		</ErrorBoundary>
 	</React.StrictMode>,
 );

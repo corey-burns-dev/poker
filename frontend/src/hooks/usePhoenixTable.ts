@@ -1,267 +1,264 @@
 import { useCallback, useEffect, useState } from "react";
+import { useAuth } from "../contexts/AuthContext";
 import type { BackendHealth, BackendTable } from "../types/backend";
 
 type PhoenixMessage = [string | null, string | null, string, string, unknown];
 type TableActionPayload = {
-	amount?: number;
-	seat?: number;
-	show_cards?: boolean;
+  amount?: number;
+  seat?: number;
+  show_cards?: boolean;
 };
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:4000";
-const WEBSOCKET_BASE =
-	import.meta.env.VITE_BACKEND_WS_URL || "ws://localhost:4000/socket";
+const WEBSOCKET_BASE = import.meta.env.VITE_BACKEND_WS_URL || "ws://localhost:4000/socket";
 const PLAYER_ID_STORAGE_KEY = "poker.player_id";
 const PROFILE_STORAGE_KEY = "poker.profile";
 
 function loadPlayerIdentity() {
-	if (typeof window === "undefined") {
-		return { playerId: "server-render", playerName: "Player" };
-	}
+  if (typeof window === "undefined") {
+    return { playerId: "server-render", playerName: "Player" };
+  }
 
-	let playerId = window.localStorage.getItem(PLAYER_ID_STORAGE_KEY);
-	if (!playerId) {
-		playerId = `player-${crypto.randomUUID()}`;
-		window.localStorage.setItem(PLAYER_ID_STORAGE_KEY, playerId);
-	}
+  let playerId = window.localStorage.getItem(PLAYER_ID_STORAGE_KEY);
+  if (!playerId) {
+    playerId = `player-${crypto.randomUUID()}`;
+    window.localStorage.setItem(PLAYER_ID_STORAGE_KEY, playerId);
+  }
 
-	let playerName = `Player ${playerId.slice(-4).toUpperCase()}`;
-	const profileRaw = window.localStorage.getItem(PROFILE_STORAGE_KEY);
-	if (profileRaw) {
-		try {
-			const parsed = JSON.parse(profileRaw) as { displayName?: string };
-			if (parsed.displayName?.trim()) {
-				playerName = parsed.displayName.trim();
-			}
-		} catch {
-			// Ignore malformed profile payload and keep generated player name.
-		}
-	}
+  let playerName = `Player ${playerId.slice(-4).toUpperCase()}`;
+  const profileRaw = window.localStorage.getItem(PROFILE_STORAGE_KEY);
+  if (profileRaw) {
+    try {
+      const parsed = JSON.parse(profileRaw) as { displayName?: string };
+      if (parsed.displayName?.trim()) {
+        playerName = parsed.displayName.trim();
+      }
+    } catch {
+      // Ignore malformed profile payload and keep generated player name.
+    }
+  }
 
-	return {
-		playerId,
-		playerName,
-	};
+  return {
+    playerId,
+    playerName,
+  };
 }
 
 type UsePhoenixTableResult = {
-	playerId: string;
-	playerName: string;
-	backendHealth: BackendHealth | null;
-	backendTable: BackendTable | null;
-	backendState: string;
-	sendAction: (action: string, payload?: TableActionPayload) => Promise<void>;
+  playerId: string;
+  playerName: string;
+  backendHealth: BackendHealth | null;
+  backendTable: BackendTable | null;
+  backendState: string;
+  sendAction: (action: string, payload?: TableActionPayload) => Promise<void>;
 };
 
 export function usePhoenixTable(tableId = "default"): UsePhoenixTableResult {
-	const { playerId, playerName } = loadPlayerIdentity();
-	const [backendHealth, setBackendHealth] = useState<BackendHealth | null>(
-		null,
-	);
-	const [backendTable, setBackendTable] = useState<BackendTable | null>(null);
-	const [backendState, setBackendState] = useState("Connecting backend...");
+  const { user } = useAuth();
+  const { playerId: guestPlayerId, playerName: guestPlayerName } = loadPlayerIdentity();
 
-	const sendAction = useCallback(
-		async (action: string, payload?: TableActionPayload) => {
-			const actionUrl = new URL(`${BACKEND_URL}/api/tables/${tableId}/actions`);
-			actionUrl.searchParams.set("action", action);
+  const playerId = user ? String(user.id) : guestPlayerId;
+  const playerName = user ? user.username : guestPlayerName;
 
-			const response = await fetch(actionUrl.toString(), {
-				method: "POST",
-				headers: {
-					"content-type": "application/json",
-				},
-				body: JSON.stringify({
-					action,
-					amount: payload?.amount,
-					seat: payload?.seat,
-					show_cards: payload?.show_cards,
-					player_id: playerId,
-					player_name: playerName,
-				}),
-			});
+  const [backendHealth, setBackendHealth] = useState<BackendHealth | null>(null);
+  const [backendTable, setBackendTable] = useState<BackendTable | null>(null);
+  const [backendState, setBackendState] = useState("Connecting backend...");
 
-			if (!response.ok) {
-				throw new Error(`Backend action failed: ${action}`);
-			}
+  const sendAction = useCallback(
+    async (action: string, payload?: TableActionPayload) => {
+      const actionUrl = new URL(`${BACKEND_URL}/api/tables/${tableId}/actions`);
+      actionUrl.searchParams.set("action", action);
 
-			const table = (await response.json()) as BackendTable;
-			setBackendTable(table);
-			setBackendState("Phoenix action synced");
-		},
-		[playerId, playerName, tableId],
-	);
+      const response = await fetch(actionUrl.toString(), {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          action,
+          amount: payload?.amount,
+          seat: payload?.seat,
+          show_cards: payload?.show_cards,
+          player_id: playerId,
+          player_name: playerName,
+        }),
+      });
 
-	useEffect(() => {
-		if (typeof window === "undefined") return;
+      if (!response.ok) {
+        throw new Error(`Backend action failed: ${action}`);
+      }
 
-		let disposed = false;
-		let messageRef = 1;
-		let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
-		let socket: WebSocket | null = null;
-		let reconnectTimer: number | null = null;
-		let reconnectAttempts = 0;
-		const MAX_RECONNECT_DELAY = 30_000;
+      await response.json();
+      setBackendState("Phoenix action synced");
+    },
+    [playerId, playerName, tableId],
+  );
 
-		const loadBackendState = async () => {
-			try {
-				const [healthResponse, tableResponse] = await Promise.all([
-					fetch(`${BACKEND_URL}/api/health`),
-					fetch(`${BACKEND_URL}/api/tables/${tableId}`),
-				]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
 
-				if (!healthResponse.ok || !tableResponse.ok) {
-					throw new Error("Backend HTTP request failed");
-				}
+    let disposed = false;
+    let messageRef = 1;
+    let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+    let socket: WebSocket | null = null;
+    let reconnectTimer: number | null = null;
+    let reconnectAttempts = 0;
+    const MAX_RECONNECT_DELAY = 30_000;
 
-				const [health, table] = (await Promise.all([
-					healthResponse.json(),
-					tableResponse.json(),
-				])) as [BackendHealth, BackendTable];
+    const loadBackendState = async () => {
+      try {
+        const [healthResponse, tableResponse] = await Promise.all([
+          fetch(`${BACKEND_URL}/api/health`, { credentials: "include" }),
+          fetch(`${BACKEND_URL}/api/tables/${tableId}`, {
+            credentials: "include",
+          }),
+        ]);
 
-				if (disposed) return;
-				setBackendHealth(health);
-				setBackendTable(table);
-				setBackendState("Phoenix API connected");
-			} catch (_error) {
-				if (!disposed) {
-					setBackendState("Backend API unavailable");
-				}
-			}
-		};
+        if (!healthResponse.ok || !tableResponse.ok) {
+          throw new Error("Backend HTTP request failed");
+        }
 
-		void loadBackendState();
+        const [health, table] = (await Promise.all([
+          healthResponse.json(),
+          tableResponse.json(),
+        ])) as [BackendHealth, BackendTable];
 
-		const send = (topic: string, event: string, payload: unknown) => {
-			if (!socket || socket.readyState !== WebSocket.OPEN) return;
-			const ref = String(messageRef);
-			messageRef += 1;
-			const message: PhoenixMessage = [ref, ref, topic, event, payload];
-			socket.send(JSON.stringify(message));
-		};
+        if (disposed) return;
+        setBackendHealth(health);
+        setBackendTable(table);
+        setBackendState("Phoenix API connected");
+      } catch (_error) {
+        if (!disposed) {
+          setBackendState("Backend API unavailable");
+        }
+      }
+    };
 
-		const cleanup = () => {
-			if (heartbeatTimer) {
-				clearInterval(heartbeatTimer);
-				heartbeatTimer = null;
-			}
-			if (socket) {
-				socket.onopen = null;
-				socket.onmessage = null;
-				socket.onerror = null;
-				socket.onclose = null;
-				if (
-					socket.readyState === WebSocket.OPEN ||
-					socket.readyState === WebSocket.CONNECTING
-				) {
-					socket.close();
-				}
-				socket = null;
-			}
-		};
+    void loadBackendState();
 
-		const scheduleReconnect = () => {
-			if (disposed || reconnectTimer) return;
-			const delay = Math.min(
-				1000 * 2 ** reconnectAttempts,
-				MAX_RECONNECT_DELAY,
-			);
-			reconnectAttempts += 1;
-			setBackendState(`Reconnecting in ${Math.round(delay / 1000)}s...`);
-			reconnectTimer = window.setTimeout(() => {
-				reconnectTimer = null;
-				if (!disposed) connect();
-			}, delay);
-		};
+    const send = (topic: string, event: string, payload: unknown) => {
+      if (!socket || socket.readyState !== WebSocket.OPEN) return;
+      const ref = String(messageRef);
+      messageRef += 1;
+      const message: PhoenixMessage = [ref, ref, topic, event, payload];
+      socket.send(JSON.stringify(message));
+    };
 
-		const connect = () => {
-			cleanup();
-			if (disposed) return;
+    const cleanup = () => {
+      if (heartbeatTimer) {
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+      }
+      if (socket) {
+        socket.onopen = null;
+        socket.onmessage = null;
+        socket.onerror = null;
+        socket.onclose = null;
+        if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+          socket.close();
+        }
+        socket = null;
+      }
+    };
 
-			const websocketUrl = `${WEBSOCKET_BASE}/websocket?vsn=2.0.0`;
-			socket = new WebSocket(websocketUrl);
+    const scheduleReconnect = () => {
+      if (disposed || reconnectTimer) return;
+      const delay = Math.min(1000 * 2 ** reconnectAttempts, MAX_RECONNECT_DELAY);
+      reconnectAttempts += 1;
+      setBackendState(`Reconnecting in ${Math.round(delay / 1000)}s...`);
+      reconnectTimer = window.setTimeout(() => {
+        reconnectTimer = null;
+        if (!disposed) connect();
+      }, delay);
+    };
 
-			socket.addEventListener("open", () => {
-				if (disposed) {
-					socket?.close();
-					return;
-				}
-				reconnectAttempts = 0;
-				send(`table:${tableId}`, "phx_join", {
-					player_id: playerId,
-					player_name: playerName,
-				});
-				heartbeatTimer = setInterval(() => {
-					send("phoenix", "heartbeat", {});
-				}, 30_000);
-			});
+    const connect = () => {
+      cleanup();
+      if (disposed) return;
 
-			socket.addEventListener("message", (rawMessage) => {
-				if (disposed) return;
-				const [, , topic, event, payload] = JSON.parse(
-					rawMessage.data as string,
-				) as PhoenixMessage;
+      const websocketUrl = `${WEBSOCKET_BASE}/websocket?vsn=2.0.0`;
+      socket = new WebSocket(websocketUrl);
 
-				if (topic === `table:${tableId}` && event === "phx_reply") {
-					const replyPayload = payload as {
-						response?: { state?: BackendTable };
-						status?: string;
-					};
-					if (replyPayload.status === "ok") {
-						if (replyPayload.response?.state) {
-							setBackendTable(replyPayload.response.state);
-						}
-						setBackendState("Phoenix channel connected");
-						send(`table:${tableId}`, "ping", { source: "frontend" });
-					} else {
-						setBackendState("Phoenix channel join failed");
-					}
-				}
+      socket.addEventListener("open", () => {
+        if (disposed) {
+          socket?.close();
+          return;
+        }
+        reconnectAttempts = 0;
+        send(`table:${tableId}`, "phx_join", {
+          player_id: playerId,
+          player_name: playerName,
+        });
+        heartbeatTimer = setInterval(() => {
+          send("phoenix", "heartbeat", {});
+        }, 30_000);
+      });
 
-				if (topic === `table:${tableId}` && event === "table_event") {
-					const tablePayload = payload as {
-						state?: BackendTable;
-						type: string;
-					};
-					if (tablePayload.state) {
-						setBackendTable(tablePayload.state);
-					}
-					if (tablePayload.type === "pong") {
-						setBackendState("Phoenix channel connected");
-					}
-				}
-			});
+      socket.addEventListener("message", (rawMessage) => {
+        if (disposed) return;
+        const [, , topic, event, payload] = JSON.parse(rawMessage.data as string) as PhoenixMessage;
 
-			socket.addEventListener("error", () => {
-				if (!disposed) {
-					setBackendState("Phoenix socket disconnected");
-				}
-			});
+        if (topic === `table:${tableId}` && event === "phx_reply") {
+          const replyPayload = payload as {
+            response?: { state?: BackendTable };
+            status?: string;
+          };
+          if (replyPayload.status === "ok") {
+            if (replyPayload.response?.state) {
+              setBackendTable(replyPayload.response.state);
+            }
+            setBackendState("Phoenix channel connected");
+            send(`table:${tableId}`, "ping", { source: "frontend" });
+          } else {
+            setBackendState("Phoenix channel join failed");
+          }
+        }
 
-			socket.addEventListener("close", () => {
-				if (!disposed) {
-					scheduleReconnect();
-				}
-			});
-		};
+        if (topic === `table:${tableId}` && event === "table_event") {
+          const tablePayload = payload as {
+            state?: BackendTable;
+            type: string;
+          };
+          if (tablePayload.state) {
+            setBackendTable(tablePayload.state);
+          }
+          if (tablePayload.type === "pong") {
+            setBackendState("Phoenix channel connected");
+          }
+        }
+      });
 
-		connect();
+      socket.addEventListener("error", () => {
+        if (!disposed) {
+          setBackendState("Phoenix socket disconnected");
+        }
+      });
 
-		return () => {
-			disposed = true;
-			if (reconnectTimer) {
-				clearTimeout(reconnectTimer);
-			}
-			cleanup();
-		};
-	}, [playerId, playerName, tableId]);
+      socket.addEventListener("close", () => {
+        if (!disposed) {
+          scheduleReconnect();
+        }
+      });
+    };
 
-	return {
-		playerId,
-		playerName,
-		backendHealth,
-		backendTable,
-		backendState,
-		sendAction,
-	};
+    connect();
+
+    return () => {
+      disposed = true;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+      }
+      cleanup();
+    };
+  }, [playerId, playerName, tableId]);
+
+  return {
+    playerId,
+    playerName,
+    backendHealth,
+    backendTable,
+    backendState,
+    sendAction,
+  };
 }

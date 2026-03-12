@@ -1,5 +1,16 @@
 import Config
 
+# Only in tests, remove the complexity from the password hashing algorithm
+config :bcrypt_elixir, :log_rounds, 1
+
+config :poker_backend, PokerBackend.Repo,
+  username: "postgres",
+  password: "postgres",
+  hostname: System.get_env("DB_HOSTNAME") || "localhost",
+  database: "poker_test#{System.get_env("MIX_TEST_PARTITION")}",
+  pool: Ecto.Adapters.SQL.Sandbox,
+  pool_size: 10
+
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
 config :poker_backend, PokerBackendWeb.Endpoint,

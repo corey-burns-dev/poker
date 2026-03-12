@@ -1,5 +1,29 @@
 import Config
 
+truthy? = fn
+  nil, default -> default
+  value, _default -> String.downcase(value) in ["1", "true", "yes", "on"]
+end
+
+integer_env = fn
+  name, default ->
+    case System.get_env(name) do
+      nil ->
+        default
+
+      value ->
+        case Integer.parse(value) do
+          {parsed, ""} -> parsed
+          _ -> default
+        end
+    end
+end
+
+config :poker_backend, PokerBackendWeb.Plugs.TableActionRateLimit,
+  enabled: not truthy?.(System.get_env("TABLE_ACTION_RATE_LIMIT_DISABLED"), false),
+  limit: integer_env.("TABLE_ACTION_RATE_LIMIT_LIMIT", 120),
+  window_seconds: integer_env.("TABLE_ACTION_RATE_LIMIT_WINDOW_SECONDS", 10)
+
 if config_env() != :test do
   config :poker_backend, PokerBackendWeb.Endpoint,
     server: true,

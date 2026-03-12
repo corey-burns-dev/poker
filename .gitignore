@@ -20,6 +20,7 @@
 
 # Repo-wide
 /build
+/tmp/stress-runs
 .DS_Store
 *.pem
 .env*
