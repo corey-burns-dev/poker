@@ -10,7 +10,7 @@ on:
 jobs:
   validate-backend:
     name: Backend Validation
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     if: github.repository_owner == 'corey-burns-dev'
     steps:
       - uses: actions/checkout@v4
@@ -28,7 +28,7 @@ jobs:
 
   validate-frontend:
     name: Frontend Validation
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     if: github.repository_owner == 'corey-burns-dev'
     steps:
       - uses: actions/checkout@v4
@@ -46,7 +46,7 @@ jobs:
   publish:
     name: Publish to GHCR
     needs: [validate-backend, validate-frontend]
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository_owner == 'corey-burns-dev'
     permissions:
       contents: read
