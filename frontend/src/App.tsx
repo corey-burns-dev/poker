@@ -326,6 +326,8 @@ function LobbyScreen() {
 
 	const openAuthMode = useCallback(
 		(mode: "login" | "register", notice?: LobbyNotice) => {
+			console.log("App: openAuthMode calling", mode);
+			alert("App: Opening Auth Mode: " + mode);
 			setAuthMode(mode);
 			setAuthLocalError(null);
 			clearAuthError();
@@ -642,7 +644,7 @@ function LobbyScreen() {
 
 						<div 
 							className={`auth-card glass-panel${authMode ? " is-open" : ""}`}
-							style={{ pointerEvents: "auto", position: "relative", zIndex: 100 }}
+							style={{ pointerEvents: "auto", position: "relative", zIndex: 9999, background: "yellow", border: "5px solid red" }}
 						>
 							<p className="card-eyebrow">
 								{user
