@@ -16,9 +16,16 @@ import type { Renderer } from "./ui/Renderer";
 
 const MAX_SEATS = 8;
 const TABLE_HASH_PREFIX = "#/tables/";
-const BACKEND_URL =
-	import.meta.env.VITE_BACKEND_URL ||
-	(typeof window !== "undefined" ? window.location.origin : "");
+const getBackendUrl = () => {
+	const envUrl = import.meta.env.VITE_BACKEND_URL;
+	if (typeof window === "undefined") return envUrl || "";
+	if (envUrl && (!envUrl.includes("localhost:4000") || window.location.hostname === "localhost")) {
+		return envUrl;
+	}
+	return window.location.origin;
+};
+
+const BACKEND_URL = getBackendUrl();
 const TABLE_STORAGE_KEY = "poker.lobby_tables";
 
 type SeatLayout = {

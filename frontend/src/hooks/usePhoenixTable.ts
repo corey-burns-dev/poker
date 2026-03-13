@@ -10,14 +10,30 @@ type TableActionPayload = {
   show_cards?: boolean;
 };
 
-const BACKEND_URL =
-  import.meta.env.VITE_BACKEND_URL ||
-  (typeof window !== "undefined" ? window.location.origin : "");
-const WEBSOCKET_BASE =
-  import.meta.env.VITE_BACKEND_WS_URL ||
-  (typeof window !== "undefined"
-    ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/socket`
-    : "ws://localhost:4000/socket");
+const getBackendUrl = () => {
+  const envUrl = import.meta.env.VITE_BACKEND_URL;
+  if (typeof window === "undefined") return envUrl || "";
+  if (envUrl && (!envUrl.includes("localhost:4000") || window.location.hostname === "localhost")) {
+    return envUrl;
+  }
+  return window.location.origin;
+};
+
+const BACKEND_URL = getBackendUrl();
+
+const getWebSocketBase = () => {
+  const envWs = import.meta.env.VITE_BACKEND_WS_URL;
+  if (typeof window === "undefined") return envWs || "ws://localhost:4000/socket";
+  
+  if (envWs && (!envWs.includes("localhost:4000") || window.location.hostname === "localhost")) {
+    return envWs;
+  }
+  
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//${window.location.host}/socket`;
+};
+
+const WEBSOCKET_BASE = getWebSocketBase();
 
 const PLAYER_ID_STORAGE_KEY = "poker.player_id";
 const PROFILE_STORAGE_KEY = "poker.profile";

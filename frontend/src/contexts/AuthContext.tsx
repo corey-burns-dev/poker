@@ -23,9 +23,20 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const BACKEND_URL =
-  import.meta.env.VITE_BACKEND_URL ||
-  (typeof window !== "undefined" ? window.location.origin : "");
+const getBackendUrl = () => {
+  const envUrl = import.meta.env.VITE_BACKEND_URL;
+  if (typeof window === "undefined") return envUrl || "";
+  
+  // If we have an env var and it's not the default localhost (or we ARE on localhost), use it
+  if (envUrl && (!envUrl.includes("localhost:4000") || window.location.hostname === "localhost")) {
+    return envUrl;
+  }
+  
+  // Otherwise, use the current origin (production)
+  return window.location.origin;
+};
+
+const BACKEND_URL = getBackendUrl();
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
