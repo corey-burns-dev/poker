@@ -32,15 +32,16 @@ defmodule PokerBackendWeb.TableController do
         user = conn.assigns.current_scope.user
         action_params = authorize_action_params(params, user)
 
-      {:ok, _pid} = PokerBackend.Table.ensure_started(table_id)
+        {:ok, _pid} = PokerBackend.Table.ensure_started(table_id)
 
-      case PokerBackend.Table.action(table_id, action, action_params) do
-        {:ok, state} -> json(conn, state)
-        {:error, reason} ->
-          conn
-          |> put_status(422)
-          |> json(%{error: format_action_error(reason), code: reason})
-      end
+        case PokerBackend.Table.action(table_id, action, action_params) do
+          {:ok, state} -> json(conn, state)
+
+          {:error, reason} ->
+            conn
+            |> put_status(422)
+            |> json(%{error: format_action_error(reason), code: reason})
+        end
     end
   end
 

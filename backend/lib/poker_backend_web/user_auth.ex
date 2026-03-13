@@ -144,33 +144,20 @@ defmodule PokerBackendWeb.UserAuth do
 
   # Do not renew session if the user is already logged in
   # to prevent CSRF errors or data being lost in tabs that are still open
-  defp renew_session(conn, user) when conn.assigns.current_scope.user.id == user.id do
-    conn
+  defp renew_session(conn, user) do
+    current_user = conn.assigns[:current_scope] && conn.assigns.current_scope.user
+
+    if current_user && user && current_user.id == user.id do
+      conn
+    else
+      delete_csrf_token()
+
+      conn
+      |> configure_session(renew: true)
+      |> clear_session()
+    end
   end
 
-  # This function renews the session ID and erases the whole
-  # session to avoid fixation attacks. If there is any data
-  # in the session you may want to preserve after log in/log out,
-  # you must explicitly fetch the session data before clearing
-  # and then immediately set it after clearing, for example:
-  #
-  #     defp renew_session(conn, _user) do
-  #       delete_csrf_token()
-  #       preferred_locale = get_session(conn, :preferred_locale)
-  #
-  #       conn
-  #       |> configure_session(renew: true)
-  #       |> clear_session()
-  #       |> put_session(:preferred_locale, preferred_locale)
-  #     end
-  #
-  defp renew_session(conn, _user) do
-    delete_csrf_token()
-
-    conn
-    |> configure_session(renew: true)
-    |> clear_session()
-  end
 
   defp maybe_write_remember_me_cookie(conn, token, %{"remember_me" => "true"}, _),
     do: write_remember_me_cookie(conn, token)
@@ -194,7 +181,9 @@ defmodule PokerBackendWeb.UserAuth do
   Plug for routes that require sudo mode.
   """
   def require_sudo_mode(conn, _opts) do
-    if Accounts.sudo_mode?(conn.assigns.current_scope.user, -10) do
+    user = conn.assigns[:current_scope] && conn.assigns.current_scope.user
+
+    if user && Accounts.sudo_mode?(user, -10) do
       conn
     else
       conn
