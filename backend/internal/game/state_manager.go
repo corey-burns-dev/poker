@@ -69,9 +69,7 @@ func (t *Table) Join(playerID string, playerName string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	t.incrementConnection(playerID)
-	t.reconnectPlayer(playerID)
-	t.state.LastEvent = playerName + " joined the table"
+	t.presenceTracker.PlayerJoined(playerID, playerName)
 	t.broadcast()
 	t.scheduleAutoProgress()
 }
@@ -80,9 +78,7 @@ func (t *Table) Leave(playerID string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	t.decrementConnection(playerID)
-	t.disconnectPlayer(playerID)
-	t.state.LastEvent = playerID + " left the table"
+	t.presenceTracker.PlayerLeft(playerID)
 	t.broadcast()
 	t.scheduleAutoProgress()
 }
@@ -353,7 +349,7 @@ func (t *Table) nextHand() {
 			fmt.Sprintf("Blinds posted: %d / %d.", SmallBlind, BigBlind),
 			fmt.Sprintf("Action on seat %d.", pos.actingSeat),
 		},
-		ActionLogSeq:  3,
+		ActionLogSeq:  t.state.HandState.ActionLogSeq + 3,
 		LastAction:    "hand_started",
 		WinnerAmounts: make(map[string]int),
 	}

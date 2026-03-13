@@ -6,138 +6,146 @@ import (
 	"sort"
 )
 
-func (t *Table) processHandAction(action string, payload map[string]interface{}) {
-	if t.state.HandState.ActingSeat == nil {
-		t.invalidAction("no_actor_for_" + action)
-		return
-	}
-	seat := *t.state.HandState.ActingSeat
-	var player *models.Player
-	playerIdx := -1
-	for i := range t.state.Players {
-		if t.state.Players[i].Seat == seat {
-			player = &t.state.Players[i]
-			playerIdx = i
-			break
-		}
-	}
-	if player == nil || player.Status != "ACTIVE" {
-		t.invalidAction("invalid_actor")
-		return
+// BettingEngine handles all betting logic and validation
+type BettingEngine struct {
+	state *models.TableState
+	log   func(string) // callback for logging
+}
+
+// NewBettingEngine creates a new betting engine
+func NewBettingEngine(state *models.TableState, log func(string)) *BettingEngine {
+	return &BettingEngine{state: state, log: log}
+}
+
+// ProcessAction handles a betting action with validation
+func (be *BettingEngine) ProcessAction(action string, playerID string, payload map[string]interface{}, validateAuth func(int, string) bool) (showdown bool, err error) {
+	if be.state.HandState.ActingSeat == nil {
+		return false, fmt.Errorf("no_actor_for_%s", action)
 	}
 
-	// Validate that the authenticated user matches the acting player
-	if playerID, ok := payload["player_id"].(string); ok {
-		if player.PlayerID == nil || *player.PlayerID != playerID {
-			t.invalidAction("unauthorized_action")
-			return
-		}
-	} else {
-		t.invalidAction("missing_player_id")
-		return
+	seat := *be.state.HandState.ActingSeat
+	playerIdx, player := be.findPlayerBySeat(seat)
+	if player == nil || player.Status != "ACTIVE" {
+		return false, fmt.Errorf("invalid_actor")
 	}
-	toCall := t.state.HandState.CurrentBet - player.BetThisStreet
+
+	// Validate authentication
+	if !validateAuth(seat, playerID) {
+		return false, fmt.Errorf("unauthorized_action")
+	}
+
+	toCall := be.state.HandState.CurrentBet - player.BetThisStreet
 	if toCall < 0 {
 		toCall = 0
 	}
-	amount := t.normalizeAmount(payload["amount"])
+
+	amount := be.normalizeAmount(payload["amount"])
+
 	switch action {
 	case "fold":
 		player.Status = "FOLDED"
-		t.markActed(seat)
-		t.advanceAfterAction(seat, fmt.Sprintf("Seat %d folds.", seat), action)
+		be.markActed(seat)
+		showdown = be.advanceAfterAction(seat, fmt.Sprintf("Seat %d folds.", seat), action)
 	case "check":
-		if toCall == 0 {
-			t.markActed(seat)
-			t.advanceAfterAction(seat, fmt.Sprintf("Seat %d checks.", seat), action)
-		} else {
-			t.invalidAction("invalid_check")
+		if toCall != 0 {
+			return false, fmt.Errorf("invalid_check")
 		}
+		be.markActed(seat)
+		showdown = be.advanceAfterAction(seat, fmt.Sprintf("Seat %d checks.", seat), action)
 	case "call":
-		if toCall > 0 {
-			paid := toCall
-			if player.Stack < toCall {
-				paid = player.Stack
-			}
-			t.contribute(playerIdx, paid)
-			t.markActed(seat)
-			t.advanceAfterAction(seat, fmt.Sprintf("Seat %d calls %d.", seat, paid), action)
-		} else {
-			t.invalidAction("invalid_call")
+		if toCall <= 0 {
+			return false, fmt.Errorf("invalid_call")
 		}
+		be.handleCall(playerIdx, toCall)
 	case "bet":
-		if t.state.HandState.CurrentBet == 0 && amount >= BigBlind && amount <= player.Stack {
-			t.contribute(playerIdx, amount)
-			t.state.HandState.CurrentBet = amount
-			t.state.HandState.MinimumRaise = amount
-			t.resetActedTo([]int{seat})
-			t.advanceAfterAction(seat, fmt.Sprintf("Seat %d bets %d.", seat, amount), action)
-		} else {
-			t.invalidAction("invalid_bet")
+		if err := be.validateBet(player, amount); err != nil {
+			return false, err
 		}
+		be.handleBet(playerIdx, amount)
 	case "raise":
-		minRaise := t.state.HandState.CurrentBet + t.state.HandState.MinimumRaise
-		if amount >= minRaise && amount <= player.BetThisStreet+player.Stack {
-			contribution := amount - player.BetThisStreet
-			raiseSize := amount - t.state.HandState.CurrentBet
-			t.contribute(playerIdx, contribution)
-			t.state.HandState.CurrentBet = amount
-			t.state.HandState.MinimumRaise = raiseSize
-			t.resetActedTo([]int{seat})
-			t.advanceAfterAction(seat, fmt.Sprintf("Seat %d raises to %d.", seat, amount), action)
-		} else {
-			t.invalidAction("invalid_raise")
+		if err := be.validateRaise(player, amount); err != nil {
+			return false, err
 		}
+		be.handleRaise(playerIdx, amount)
+	default:
+		return false, fmt.Errorf("unknown_action_%s", action)
+	}
+
+	return false, nil
+}
+
+// Private helpers
+
+func (be *BettingEngine) findPlayerBySeat(seat int) (int, *models.Player) {
+	for i := range be.state.Players {
+		if be.state.Players[i].Seat == seat {
+			return i, &be.state.Players[i]
+		}
+	}
+	return -1, nil
+}
+
+func (be *BettingEngine) normalizeAmount(amount interface{}) int {
+	if amount == nil {
+		return 0
+	}
+	switch v := amount.(type) {
+	case float64:
+		return int(v)
+	case int:
+		return v
+	default:
+		return 0
 	}
 }
 
-func (t *Table) contribute(playerIdx int, amount int) {
-	p := &t.state.Players[playerIdx]
+func (be *BettingEngine) contribute(playerIdx int, amount int) {
+	p := &be.state.Players[playerIdx]
 	p.Stack -= amount
 	p.BetThisStreet += amount
 	p.ContributedThisHand += amount
-	t.state.HandState.Pot += amount
+	be.state.HandState.Pot += amount
 	if p.Stack == 0 {
 		p.Status = "ALL_IN"
 	}
 }
 
-func (t *Table) markActed(seat int) {
-	for _, s := range t.state.HandState.ActedSeats {
+func (be *BettingEngine) markActed(seat int) {
+	for _, s := range be.state.HandState.ActedSeats {
 		if s == seat {
 			return
 		}
 	}
-	t.state.HandState.ActedSeats = append(t.state.HandState.ActedSeats, seat)
+	be.state.HandState.ActedSeats = append(be.state.HandState.ActedSeats, seat)
 }
 
-func (t *Table) resetActedTo(seats []int) {
-	t.state.HandState.ActedSeats = seats
+func (be *BettingEngine) resetActedTo(seats []int) {
+	be.state.HandState.ActedSeats = seats
 }
 
-func (t *Table) advanceAfterAction(seat int, message string, action string) {
-	t.state.HandState.LastAction = action
-	t.state.LastEvent = message
-	t.appendHandLog(message)
-	if t.oneContenderLeft() {
-		t.concludeFoldout()
+func (be *BettingEngine) advanceAfterAction(seat int, message string, action string) (showdown bool) {
+	be.state.HandState.LastAction = action
+	be.log(message)
+	if be.oneContenderLeft() {
+		showdown = true
 		return
 	}
-	if t.streetComplete() {
-		t.advanceStreet()
+	if be.streetComplete() {
+		be.advanceStreet()
 	} else {
-		next := t.nextActionableSeat(seat)
+		next := be.nextActionableSeat(seat)
 		if next == 0 {
-			t.advanceStreet()
+			be.advanceStreet()
 		} else {
-			t.state.HandState.ActingSeat = &next
+			be.state.HandState.ActingSeat = &next
 		}
 	}
+	return false
 }
 
-func (t *Table) oneContenderLeft() bool {
+func (be *BettingEngine) oneContenderLeft() bool {
 	count := 0
-	for _, p := range t.state.Players {
+	for _, p := range be.state.Players {
 		if p.Status == "ACTIVE" || p.Status == "ALL_IN" {
 			count++
 		}
@@ -145,22 +153,22 @@ func (t *Table) oneContenderLeft() bool {
 	return count == 1
 }
 
-func (t *Table) streetComplete() bool {
+func (be *BettingEngine) streetComplete() bool {
 	var contenders []models.Player
-	for _, p := range t.state.Players {
+	for _, p := range be.state.Players {
 		if p.Status == "ACTIVE" || p.Status == "ALL_IN" {
 			contenders = append(contenders, p)
 		}
 	}
 	for _, p := range contenders {
-		if p.Status == "ACTIVE" && p.BetThisStreet != t.state.HandState.CurrentBet {
+		if p.Status == "ACTIVE" && p.BetThisStreet != be.state.HandState.CurrentBet {
 			return false
 		}
 	}
-	for _, p := range t.state.Players {
+	for _, p := range be.state.Players {
 		if p.Status == "ACTIVE" {
 			acted := false
-			for _, s := range t.state.HandState.ActedSeats {
+			for _, s := range be.state.HandState.ActedSeats {
 				if s == p.Seat {
 					acted = true
 					break
@@ -174,21 +182,33 @@ func (t *Table) streetComplete() bool {
 	return true
 }
 
-func (t *Table) nextActionableSeat(current int) int {
+func (be *BettingEngine) nextActionableSeat(current int) int {
 	var seats []int
-	for _, p := range t.state.Players {
+	for _, p := range be.state.Players {
 		if p.Status == "ACTIVE" {
 			seats = append(seats, p.Seat)
 		}
 	}
 	sort.Ints(seats)
-	return t.nextSeatInList(seats, current)
+	return be.nextSeatInList(seats, current)
 }
 
-func (t *Table) advanceStreet() {
+func (be *BettingEngine) nextSeatInList(seats []int, current int) int {
+	if len(seats) == 0 {
+		return 0
+	}
+	for _, s := range seats {
+		if s > current {
+			return s
+		}
+	}
+	return seats[0]
+}
+
+func (be *BettingEngine) advanceStreet() {
 	nextStage := ""
 	drawCount := 0
-	switch t.state.HandState.Stage {
+	switch be.state.HandState.Stage {
 	case "preflop":
 		nextStage = "flop"
 		drawCount = 3
@@ -199,38 +219,37 @@ func (t *Table) advanceStreet() {
 		nextStage = "river"
 		drawCount = 1
 	case "river":
-		t.concludeShowdown()
+		// Showdown - let caller handle
 		return
 	}
-	for i := range t.state.Players {
-		t.state.Players[i].BetThisStreet = 0
+	for i := range be.state.Players {
+		be.state.Players[i].BetThisStreet = 0
 	}
-	if len(t.state.HandState.Deck) < drawCount {
-		t.concludeShowdown()
+	if len(be.state.HandState.Deck) < drawCount {
+		// Trigger showdown
 		return
 	}
-	drawn := t.state.HandState.Deck[:drawCount]
-	t.state.HandState.Deck = t.state.HandState.Deck[drawCount:]
-	t.state.HandState.CommunityCards = append(t.state.HandState.CommunityCards, drawn...)
-	t.state.HandState.Stage = nextStage
-	t.state.HandState.CurrentBet = 0
-	t.state.HandState.ActedSeats = []int{}
-	t.state.HandState.MinimumRaise = BigBlind
-	if t.runoutOnly() {
-		t.state.HandState.ActingSeat = nil
-		t.advanceStreet()
+	drawn := be.state.HandState.Deck[:drawCount]
+	be.state.HandState.Deck = be.state.HandState.Deck[drawCount:]
+	be.state.HandState.CommunityCards = append(be.state.HandState.CommunityCards, drawn...)
+	be.state.HandState.Stage = nextStage
+	be.state.HandState.CurrentBet = 0
+	be.state.HandState.ActedSeats = []int{}
+	be.state.HandState.MinimumRaise = BigBlind
+	if be.runoutOnly() {
+		be.state.HandState.ActingSeat = nil
+		be.advanceStreet() // Runout to river
 	} else {
-		next := t.nextActionableSeat(t.state.HandState.DealerSeat)
-		t.state.HandState.ActingSeat = &next
-		t.state.LastEvent = nextStage + "_dealt"
-		t.appendHandLog(fmt.Sprintf("%s dealt. Action on seat %d.", nextStage, next))
+		next := be.nextActionableSeat(be.state.HandState.DealerSeat)
+		be.state.HandState.ActingSeat = &next
+		be.log(fmt.Sprintf("%s dealt. Action on seat %d.", nextStage, next))
 	}
 }
 
-func (t *Table) runoutOnly() bool {
+func (be *BettingEngine) runoutOnly() bool {
 	active := 0
 	allIn := 0
-	for _, p := range t.state.Players {
+	for _, p := range be.state.Players {
 		if p.Status == "ACTIVE" {
 			active++
 		}
@@ -241,185 +260,51 @@ func (t *Table) runoutOnly() bool {
 	return allIn > 0 && active <= 1
 }
 
-func (t *Table) concludeFoldout() {
-	var winner *models.Player
-	for i := range t.state.Players {
-		if t.state.Players[i].Status == "ACTIVE" || t.state.Players[i].Status == "ALL_IN" {
-			winner = &t.state.Players[i]
-			break
-		}
+func (be *BettingEngine) handleCall(playerIdx int, toCall int) (showdown bool) {
+	seat := be.state.Players[playerIdx].Seat
+	paid := toCall
+	if be.state.Players[playerIdx].Stack < toCall {
+		paid = be.state.Players[playerIdx].Stack
 	}
-	pot := t.state.HandState.Pot
-	winner.Stack += pot
-	winnerSeat := winner.Seat
-	t.state.HandState.Status = "complete"
-	t.state.HandState.Stage = "showdown"
-	t.state.HandState.ActingSeat = nil
-	t.state.HandState.WinnerSeats = []int{winnerSeat}
-	t.state.HandState.WinnerAmounts = map[string]int{fmt.Sprintf("%d", winnerSeat): pot}
-	message := fmt.Sprintf("Hand ends by fold. Seat %d wins %d.", winnerSeat, pot)
-	t.state.LastEvent = "hand_complete"
-	t.state.HandState.HandResult = &models.HandResult{
-		Heading:     fmt.Sprintf("Seat %d wins by fold", winnerSeat),
-		Lines:       []string{message},
-		HeroOutcome: t.heroOutcome([]int{winnerSeat}),
-	}
-	t.appendHandLog(message)
-	t.appendHandLog("Next hand starting shortly...")
-	t.pruneDisconnected()
+	be.contribute(playerIdx, paid)
+	be.markActed(seat)
+	showdown = be.advanceAfterAction(seat, fmt.Sprintf("Seat %d calls %d.", seat, paid), "call")
+	return
 }
 
-func (t *Table) concludeShowdown() {
-	// 1. Collect all evaluations for players who could win
-	evals := t.showdownEvaluations()
-	if len(evals) == 0 {
-		t.concludeFoldout()
-		return
+func (be *BettingEngine) validateBet(player *models.Player, amount int) error {
+	if be.state.HandState.CurrentBet != 0 || amount < BigBlind || amount > player.Stack {
+		return fmt.Errorf("invalid_bet")
 	}
-	evalMap := make(map[int]HandEvaluation)
-	for i := range evals {
-		evalMap[evals[i].Seat] = evals[i]
-	}
-
-	// 2. Identify all contribution levels from all players who put money in
-	contributions := make(map[int]bool)
-	for _, p := range t.state.Players {
-		if p.ContributedThisHand > 0 {
-			contributions[p.ContributedThisHand] = true
-		}
-	}
-	var amounts []int
-	for a := range contributions {
-		amounts = append(amounts, a)
-	}
-	sort.Ints(amounts)
-
-	winnerAmounts := make(map[string]int)
-	winnerSeatsSet := make(map[int]bool)
-	var winLines []string
-
-	// 3. Award each "tier" of the pot to its respective winners
-	lastAmount := 0
-	for _, a := range amounts {
-		tierSize := a - lastAmount
-		potForThisTier := 0
-		var eligibleWithEvals []HandEvaluation
-
-		for _, p := range t.state.Players {
-			if p.ContributedThisHand >= a {
-				potForThisTier += tierSize
-				if eval, ok := evalMap[p.Seat]; ok {
-					eligibleWithEvals = append(eligibleWithEvals, eval)
-				}
-			} else if p.ContributedThisHand > lastAmount {
-				// This player contributed partially to this tier
-				potForThisTier += (p.ContributedThisHand - lastAmount)
-				// If they were all-in for less than 'a', they are NOT eligible for the full tier,
-				// but they are already in the evaluation map if they were at showdown.
-				// Actually, in poker, you ARE eligible for whatever money you contested.
-				// If Alice is all-in for 100 and Bob/Charlie call 500, the 100-tier is split 3 ways.
-				// The 100-500 tier is split 2 ways (Bob/Charlie).
-				// So Alice IS eligible for the 100-tier.
-				if eval, ok := evalMap[p.Seat]; ok {
-					eligibleWithEvals = append(eligibleWithEvals, eval)
-				}
-			}
-		}
-
-		if potForThisTier > 0 && len(eligibleWithEvals) > 0 {
-			// Find winners for this tier
-			bestScore := eligibleWithEvals[0].Score
-			for _, e := range eligibleWithEvals {
-				if e.Score.Compare(bestScore) > 0 {
-					bestScore = e.Score
-				}
-			}
-			var winners []HandEvaluation
-			for _, e := range eligibleWithEvals {
-				if e.Score.Compare(bestScore) == 0 {
-					winners = append(winners, e)
-				}
-			}
-
-			// Award this tier
-			split := potForThisTier / len(winners)
-			rem := potForThisTier % len(winners)
-			for i, w := range winners {
-				amt := split
-				if i == 0 {
-					amt += rem
-				}
-				winnerAmounts[fmt.Sprintf("%d", w.Seat)] += amt
-				winnerSeatsSet[w.Seat] = true
-
-				// Update player stack
-				for j := range t.state.Players {
-					if t.state.Players[j].Seat == w.Seat {
-						t.state.Players[j].Stack += amt
-						break
-					}
-				}
-			}
-		}
-		lastAmount = a
-	}
-
-	// 4. Update state and logs
-	for i := range t.state.Players {
-		t.state.Players[i].Status = t.waitingStatus(t.state.Players[i])
-		t.state.Players[i].BetThisStreet = 0
-		t.state.Players[i].ShowCards = true
-	}
-
-	t.state.HandState.Status = "complete"
-	t.state.HandState.Stage = "showdown"
-
-	winnerSeats := []int{}
-	for s := range winnerSeatsSet {
-		winnerSeats = append(winnerSeats, s)
-	}
-	sort.Ints(winnerSeats)
-	t.state.HandState.WinnerSeats = winnerSeats
-	t.state.HandState.WinnerAmounts = winnerAmounts
-
-	heading := ""
-	if len(winnerSeats) == 1 {
-		heading = fmt.Sprintf("Seat %d wins", winnerSeats[0])
-	} else {
-		heading = "Split pot"
-	}
-
-	for _, s := range winnerSeats {
-		amt := winnerAmounts[fmt.Sprintf("%d", s)]
-		eval := evalMap[s]
-		message := fmt.Sprintf("Showdown. Seat %d wins %d with %s.", s, amt, eval.Description)
-		winLines = append(winLines, message)
-		t.appendHandLog(message)
-	}
-
-	t.state.HandState.HandResult = &models.HandResult{
-		Heading:     heading,
-		Lines:       winLines,
-		HeroOutcome: t.heroOutcome(winnerSeats),
-	}
-
-	t.appendHandLog("Next hand starting shortly...")
-	t.pruneDisconnected()
+	return nil
 }
 
-func (t *Table) showdownEvaluations() []HandEvaluation {
-	var evals []HandEvaluation
-	for _, p := range t.state.Players {
-		if p.Status == "ACTIVE" || p.Status == "ALL_IN" {
-			eval := Evaluate(append(p.HoleCards, t.state.HandState.CommunityCards...))
-			eval.Seat = p.Seat
-			evals = append(evals, HandEvaluation{
-				Score:       eval.Score,
-				Description: eval.Description,
-				Cards:       eval.Cards,
-				Seat:        p.Seat,
-			})
-		}
+func (be *BettingEngine) handleBet(playerIdx int, amount int) (showdown bool) {
+	seat := be.state.Players[playerIdx].Seat
+	be.contribute(playerIdx, amount)
+	be.state.HandState.CurrentBet = amount
+	be.state.HandState.MinimumRaise = amount
+	be.resetActedTo([]int{seat})
+	showdown = be.advanceAfterAction(seat, fmt.Sprintf("Seat %d bets %d.", seat, amount), "bet")
+	return
+}
+
+func (be *BettingEngine) validateRaise(player *models.Player, amount int) error {
+	minRaise := be.state.HandState.CurrentBet + be.state.HandState.MinimumRaise
+	if amount < minRaise || amount > player.BetThisStreet+player.Stack {
+		return fmt.Errorf("invalid_raise")
 	}
-	return evals
+	return nil
+}
+
+func (be *BettingEngine) handleRaise(playerIdx int, amount int) (showdown bool) {
+	seat := be.state.Players[playerIdx].Seat
+	contribution := amount - be.state.Players[playerIdx].BetThisStreet
+	raiseSize := amount - be.state.HandState.CurrentBet
+	be.contribute(playerIdx, contribution)
+	be.state.HandState.CurrentBet = amount
+	be.state.HandState.MinimumRaise = raiseSize
+	be.resetActedTo([]int{seat})
+	showdown = be.advanceAfterAction(seat, fmt.Sprintf("Seat %d raises to %d.", seat, amount), "raise")
+	return
 }

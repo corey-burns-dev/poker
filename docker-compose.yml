@@ -28,8 +28,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
+      target: dev
     working_dir: /app/backend
-    command: go run cmd/server/main.go
+    command: air -c air.toml
     ports:
       - "4000:4000"
     ulimits:
@@ -47,7 +48,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
-      start_period: 30s
+      start_period: 10s
     depends_on:
       db:
         condition: service_healthy

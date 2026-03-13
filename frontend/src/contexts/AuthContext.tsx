@@ -35,6 +35,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAuthError(null);
   }, []);
 
+  const guestLogin = useCallback(async () => {
+    try {
+      const data = await requestJson<{ data: User }>(
+        `${BACKEND_URL}/api/users/guest`,
+        {
+          method: "POST",
+          credentials: "include",
+        },
+        "Guest login failed",
+      );
+      setUser(data.data);
+    } catch (error) {
+      console.error("Failed to authenticate as guest", error);
+      setUser(null);
+    }
+  }, []);
+
   const refreshUser = useCallback(async () => {
     try {
       const data = await requestJson<{ data: User }>(
@@ -47,14 +64,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setUser(data.data);
     } catch (error) {
-      if (!(error instanceof ApiRequestError && error.status === 401)) {
+      if (error instanceof ApiRequestError && error.status === 401) {
+        // Automatically attempt guest login if no valid session
+        await guestLogin();
+      } else {
         console.error("Failed to fetch user", error);
+        setUser(null);
       }
-      setUser(null);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [guestLogin]);
 
   useEffect(() => {
     refreshUser();

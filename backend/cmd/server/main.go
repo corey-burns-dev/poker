@@ -14,9 +14,17 @@ func main() {
 	db.InitDB()
 	r := gin.Default()
 
+	// Trust localhost for health checks and local development
+	r.SetTrustedProxies([]string{"127.0.0.1", "::1"})
+
 	// CORS configuration
 	config := cors.DefaultConfig()
-	config.AllowOrigins = []string{"http://localhost:3000", "http://127.0.0.1:3000"} // Add production origins as needed
+	config.AllowOrigins = []string{
+		"http://localhost:3000",
+		"http://127.0.0.1:3000",
+		"http://localhost:3001",
+		"http://127.0.0.1:3001",
+	} // Add production origins as needed
 	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
 	config.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"}
 	config.AllowCredentials = true
@@ -28,7 +36,7 @@ func main() {
 	})
 
 	// API routes
-	api.RegisterRoutes(r)
+	api.RegisterRoutes(r, db.DB)
 
 	log.Println("Server starting on :4000")
 	if err := r.Run(":4000"); err != nil {

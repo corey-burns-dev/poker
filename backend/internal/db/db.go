@@ -14,7 +14,7 @@ var DB *gorm.DB
 func InitDB() {
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
-		dsn = "host=db user=postgres password=postgres dbname=poker_dev port=5432 sslmode=disable"
+		log.Fatal("DATABASE_URL environment variable must be set")
 	}
 
 	var err error

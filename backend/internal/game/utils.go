@@ -61,9 +61,26 @@ func (t *Table) invalidAction(reason string) {
 }
 
 func (t *Table) heroOutcome(winners []int) string {
+	return t.heroOutcomeForSeat(winners, 1) // legacy: hardcoded seat 1
+}
+
+func (t *Table) heroOutcomeForSeat(winners []int, viewerSeat int) string {
+	if viewerSeat == 0 {
+		return "spectator"
+	}
 	for _, s := range winners {
-		if s == 1 {
-			return "win"
+		if s == viewerSeat {
+			if len(winners) == 1 {
+				return "win"
+			} else {
+				return "split"
+			}
+		}
+	}
+	// Check if viewer folded
+	for _, p := range t.state.Players {
+		if p.Seat == viewerSeat && p.Status == "FOLDED" {
+			return "folded"
 		}
 	}
 	return "loss"

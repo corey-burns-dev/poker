@@ -238,7 +238,7 @@ func (t *Table) cfrSample(probs [3]int) string {
 }
 
 func (t *Table) preflopStrength(cards []string) int {
-	if len(cards) < 2 {
+	if len(cards) < 2 || cards[0] == "" || cards[1] == "" {
 		return 0
 	}
 	v1 := rankValues[string(cards[0][0])]

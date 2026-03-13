@@ -16,7 +16,8 @@ func TestRegisterUser_NestedPayload(t *testing.T) {
 	db.SetupTestDB()
 	gin.SetMode(gin.TestMode)
 	r := gin.Default()
-	r.POST("/api/users/register", RegisterUser)
+	h := NewHandler(db.DB)
+	r.POST("/api/users/register", h.RegisterUser)
 
 	payload := map[string]interface{}{
 		"user": map[string]string{
@@ -48,8 +49,9 @@ func TestLoginUser_NestedPayload(t *testing.T) {
 	db.SetupTestDB()
 	gin.SetMode(gin.TestMode)
 	r := gin.Default()
-	r.POST("/api/users/register", RegisterUser)
-	r.POST("/api/users/log-in", LoginUser)
+	h := NewHandler(db.DB)
+	r.POST("/api/users/register", h.RegisterUser)
+	r.POST("/api/users/log-in", h.LoginUser)
 
 	// First register
 	registerPayload := map[string]interface{}{

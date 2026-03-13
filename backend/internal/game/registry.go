@@ -1,6 +1,7 @@
 package game
 
 import (
+	"errors"
 	"sync"
 )
 
@@ -26,18 +27,27 @@ func GetRegistry() *TableRegistry {
 	return globalRegistry
 }
 
-func (r *TableRegistry) GetTable(tableID string) *Table {
+func (r *TableRegistry) GetTable(tableID string) (*Table, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	t, ok := r.tables[tableID]
+	if !ok {
+		return nil, errors.New("table not found")
+	}
+	return t, nil
+}
+
+func (r *TableRegistry) CreateTable(tableID string, withBots bool) (*Table, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if t, ok := r.tables[tableID]; ok {
-		return t
+	if _, ok := r.tables[tableID]; ok {
+		return nil, errors.New("table already exists")
 	}
 
-	// New tables created on the fly start empty (no bots)
-	t := NewTable(tableID, false)
+	t := NewTable(tableID, withBots)
 	r.tables[tableID] = t
-	return t
+	return t, nil
 }
 
 func (r *TableRegistry) ListActiveTables() []string {
@@ -51,4 +61,14 @@ func (r *TableRegistry) ListActiveTables() []string {
 		ids = append(ids, id)
 	}
 	return ids
+}
+
+func (r *TableRegistry) RemoveTable(tableID string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if t, ok := r.tables[tableID]; ok {
+		t.Stop()
+		delete(r.tables, tableID)
+	}
 }

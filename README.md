@@ -5,7 +5,7 @@ A real-time poker platform with a Go backend, React frontend, and CFR-trained bo
 ## Repo layout
 
 - `frontend/`: React + Vite client
-- `backend/`: Go realtime backend (mimicking Phoenix Socket protocol)
+- `backend/`: Go realtime backend (mimicking WebSocket protocol)
 - `training/`: OpenSpiel-based bot training scripts
 
 ## Highlights

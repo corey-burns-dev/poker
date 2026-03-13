@@ -25,15 +25,26 @@ type Table struct {
 	BroadcastChan chan json.RawMessage
 	autoTimer     *time.Timer
 	timerSeq      int
-	subscribers   map[chan json.RawMessage]bool
+	subscribers   map[chan struct{}]bool
+
+	// Subsystems
+	bettingEngine    *BettingEngine
+	showdownResolver *ShowdownResolver
+	presenceTracker  *PresenceTracker
 }
 
 func NewTable(tableID string, withBots bool) *Table {
 	t := &Table{
 		BroadcastChan: make(chan json.RawMessage, 100),
-		subscribers:   make(map[chan json.RawMessage]bool),
+		subscribers:   make(map[chan struct{}]bool),
 	}
 	t.state = t.initialState(tableID, withBots)
+
+	// Initialize subsystems
+	t.bettingEngine = NewBettingEngine(&t.state, t.log)
+	t.showdownResolver = NewShowdownResolver(&t.state, t.log)
+	t.presenceTracker = NewPresenceTracker(&t.state, t.log)
+
 	t.scheduleAutoProgress()
 	return t
 }
@@ -44,33 +55,54 @@ func (t *Table) GetState() models.TableState {
 	return t.state
 }
 
-func (t *Table) Subscribe() chan json.RawMessage {
+func (t *Table) GetStateFor(viewerID string) models.TableState {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	s := t.state // copy
+	for i, p := range s.Players {
+		isViewer := p.PlayerID != nil && *p.PlayerID == viewerID
+		if !isViewer && !p.ShowCards {
+			s.Players[i].HoleCards = []string{"", ""}
+		}
+	}
+	// Recompute heroOutcome for this viewer
+	if s.HandState.HandResult != nil {
+		viewerSeat := t.findViewerSeat(viewerID)
+		s.HandState.HandResult.HeroOutcome = t.heroOutcomeForSeat(s.HandState.WinnerSeats, viewerSeat)
+	}
+	return s
+}
+
+func (t *Table) Subscribe() chan struct{} {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	ch := make(chan json.RawMessage, 10)
+	ch := make(chan struct{}, 1)
 	t.subscribers[ch] = true
 	return ch
 }
 
-func (t *Table) Unsubscribe(ch chan json.RawMessage) {
+func (t *Table) Unsubscribe(ch chan struct{}) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	delete(t.subscribers, ch)
 }
 
 func (t *Table) broadcast() {
+	// Signal subscribers about a state change
+	for ch := range t.subscribers {
+		select {
+		case ch <- struct{}{}:
+		default:
+		}
+	}
+
+	// For now, keep sending full state to BroadcastChan
 	stateBytes, err := json.Marshal(t.state)
 	if err != nil {
 		return
 	}
 	raw := json.RawMessage(stateBytes)
 
-	for ch := range t.subscribers {
-		select {
-		case ch <- raw:
-		default:
-		}
-	}
 	select {
 	case t.BroadcastChan <- raw:
 	default:
@@ -112,9 +144,44 @@ func (t *Table) handleAutoProgress(seq int) {
 	t.scheduleAutoProgress()
 }
 
+func (t *Table) Stop() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.autoTimer != nil {
+		t.autoTimer.Stop()
+	}
+}
+
+func (t *Table) log(msg string) {
+	t.appendHandLog(msg)
+}
+
+func (t *Table) isOperator(playerID string) bool {
+	return playerID == "1"
+}
+
+// Handle showdown completion - DELEGATE
+func (t *Table) concludeShowdown() {
+	t.showdownResolver.ResolveShowdown()
+}
+
+func (t *Table) findViewerSeat(viewerID string) int {
+	for _, p := range t.state.Players {
+		if p.PlayerID != nil && *p.PlayerID == viewerID {
+			return p.Seat
+		}
+	}
+	return 0
+}
+
 func (t *Table) ApplyAction(action string, payload map[string]interface{}) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+
+	playerID := ""
+	if id, ok := payload["player_id"].(string); ok {
+		playerID = id
+	}
 
 	if action == "join_game" {
 		t.joinGame(payload)
@@ -123,13 +190,37 @@ func (t *Table) ApplyAction(action string, payload map[string]interface{}) {
 	} else if action == "sit_out" {
 		t.sitOut(payload)
 	} else if action == "next_hand" {
+		if !t.isOperator(playerID) {
+			t.invalidAction("unauthorized")
+			return
+		}
 		t.nextHand()
-	} else if action == "clear_table" {
-		t.clearTable()
-	} else if action == "add_bot" {
-		t.addBot()
+	} else if action == "clear_table" || action == "add_bot" {
+		if !t.isOperator(playerID) {
+			t.invalidAction("unauthorized")
+			return
+		}
+		if action == "clear_table" {
+			t.clearTable()
+		} else {
+			t.addBot()
+		}
 	} else if t.state.HandState.Status == "in_progress" {
-		t.processHandAction(action, payload)
+		// DELEGATE TO BETTING ENGINE
+		authValidator := func(seat int, pid string) bool {
+			for _, p := range t.state.Players {
+				if p.Seat == seat {
+					return p.PlayerID != nil && *p.PlayerID == pid
+				}
+			}
+			return false
+		}
+
+		if showdown, err := t.bettingEngine.ProcessAction(action, playerID, payload, authValidator); err != nil {
+			t.invalidAction(err.Error())
+		} else if showdown {
+			t.concludeShowdown()
+		}
 	} else {
 		t.invalidAction("ignored_" + action + "_while_waiting")
 	}

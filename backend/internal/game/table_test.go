@@ -34,6 +34,11 @@ func TestConcludeShowdown_SplitPot(t *testing.T) {
 		},
 	}
 
+	// Initialize subsystems
+	tbl.bettingEngine = NewBettingEngine(&tbl.state, tbl.log)
+	tbl.showdownResolver = NewShowdownResolver(&tbl.state, tbl.log)
+	tbl.presenceTracker = NewPresenceTracker(&tbl.state, tbl.log)
+
 	tbl.concludeShowdown()
 
 	if len(tbl.state.HandState.WinnerSeats) != 2 {
@@ -89,6 +94,11 @@ func TestConcludeShowdown_SplitPot_Remainder(t *testing.T) {
 		},
 	}
 
+	// Initialize subsystems
+	tbl.bettingEngine = NewBettingEngine(&tbl.state, tbl.log)
+	tbl.showdownResolver = NewShowdownResolver(&tbl.state, tbl.log)
+	tbl.presenceTracker = NewPresenceTracker(&tbl.state, tbl.log)
+
 	tbl.concludeShowdown()
 
 	aliceAmount := tbl.state.HandState.WinnerAmounts["1"]
@@ -121,6 +131,11 @@ func TestLeave_DisconnectsPlayer(t *testing.T) {
 			ClientConnections: map[string]int{playerID: 1},
 		},
 	}
+
+	// Initialize subsystems
+	tbl.bettingEngine = NewBettingEngine(&tbl.state, tbl.log)
+	tbl.showdownResolver = NewShowdownResolver(&tbl.state, tbl.log)
+	tbl.presenceTracker = NewPresenceTracker(&tbl.state, tbl.log)
 
 	tbl.Leave(playerID)
 

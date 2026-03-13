@@ -356,7 +356,7 @@ export default function () {
     }
 
     socket.on('open', function () {
-      send(tableTopic, 'phx_join', {
+      send(tableTopic, 'join', {
         player_id: plan.playerId,
         player_name: plan.playerName,
       });
@@ -365,7 +365,7 @@ export default function () {
     socket.on('message', function (rawMessage) {
       const [, , topic, event, payload] = JSON.parse(rawMessage);
 
-      if (event === 'phx_reply') {
+      if (event === 'reply') {
         const ok = payload && payload.status === 'ok';
         pokerActionErrors.add(!ok);
 
@@ -389,7 +389,7 @@ export default function () {
     });
 
     socket.setInterval(function () {
-      send('phoenix', 'heartbeat', {});
+      send('system', 'heartbeat', {});
       ensureJoin();
       maybeFillBots();
       maybeStartNextHand();

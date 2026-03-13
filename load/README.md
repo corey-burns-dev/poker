@@ -1,6 +1,6 @@
 # Poker Stress Harness
 
-This directory holds the k6 setup for driving large numbers of simulated poker players through the Phoenix channel and table action API.
+This directory holds the k6 setup for driving large numbers of simulated poker players through the WebSocket channel and table action API.
 
 ## Model
 

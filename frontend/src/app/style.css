@@ -1,15 +1,37 @@
+@import "tailwindcss";
+
 :root {
-	--bg-color-main: #0a0f1d;
-	--bg-color-accent: #161e2e;
-	--glass-bg: #1c2536;
-	--glass-border: #2d3748;
-	--accent-color: #2f95ff;
-	--accent-hover: #52a6ff;
-	--danger-color: #d65858;
-	--text-main: #eff3fa;
-	--text-muted: #9cb0cb;
-	--table-color: #1f6a41;
-	--table-glow: rgba(18, 76, 45, 0.55);
+	--bg-color-main: 224 48% 7%; /* #0a0f1d */
+	--bg-color-accent: 219 35% 14%; /* #161e2e */
+	--glass-bg: 219 32% 16%; /* #1c2536 */
+	--glass-border: 219 23% 23%; /* #2d3748 */
+	--accent-color: 211 100% 59%; /* #2f95ff */
+	--accent-hover: 211 100% 66%; /* #52a6ff */
+	--danger-color: 0 62% 59%; /* #d65858 */
+	--text-main: 216 57% 96%; /* #eff3fa */
+	--text-muted: 215 32% 71%; /* #9cb0cb */
+	--background: var(--bg-color-main);
+	--foreground: var(--text-main);
+	--card: var(--glass-bg);
+	--card-foreground: var(--text-main);
+	--popover: var(--glass-bg);
+	--popover-foreground: var(--text-main);
+	--primary: var(--accent-color);
+	--primary-foreground: 0 0% 100%;
+	--secondary: var(--bg-color-accent);
+	--secondary-foreground: var(--text-main);
+	--muted: var(--text-muted);
+	--muted-foreground: var(--text-muted);
+	--accent: var(--accent-color);
+	--accent-foreground: 0 0% 100%;
+	--destructive: var(--danger-color);
+	--destructive-foreground: 0 0% 100%;
+	--border: var(--glass-border);
+	--input: var(--glass-border);
+	--ring: var(--accent-color);
+	--radius: 8px;
+	--table-color: 147 55% 27%; /* #1f6a41 */
+	--table-glow: 147 62% 18% / 0.55;
 	--table-width: min(83vw, 1008px);
 	--table-height: min(62vh, 620px);
 	--top-ui-space: 96px;

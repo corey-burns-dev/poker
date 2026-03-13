@@ -54,6 +54,11 @@ func TestConcludeShowdown_SidePots(t *testing.T) {
 		},
 	}
 
+	// Initialize subsystems
+	tbl.bettingEngine = NewBettingEngine(&tbl.state, tbl.log)
+	tbl.showdownResolver = NewShowdownResolver(&tbl.state, tbl.log)
+	tbl.presenceTracker = NewPresenceTracker(&tbl.state, tbl.log)
+
 	tbl.concludeShowdown()
 
 	aliceWin := tbl.state.HandState.WinnerAmounts["1"]

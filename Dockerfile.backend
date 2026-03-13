@@ -1,10 +1,18 @@
-FROM golang:1.23-alpine AS build
+FROM golang:1.25-alpine AS build
 
 WORKDIR /app
 COPY . .
 RUN cd backend && go build -o /server cmd/server/main.go
 
+FROM golang:1.25-alpine AS dev
+
+WORKDIR /app
+COPY . .
+RUN cd backend && go mod download
+RUN go install github.com/air-verse/air@latest
+
 FROM alpine:3.18
+RUN apk add --no-cache curl
 WORKDIR /
 COPY --from=build /server /server
 COPY backend/data /data

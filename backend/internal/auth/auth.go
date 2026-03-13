@@ -34,17 +34,21 @@ func getSecret() []byte {
 }
 
 type Claims struct {
-	UserID uint   `json:"user_id"`
-	Email  string `json:"email"`
+	UserID   uint   `json:"user_id"`
+	Email    string `json:"email"`
+	Username string `json:"username"`
+	Balance  int    `json:"balance"`
 	jwt.RegisteredClaims
 }
 
 // GenerateToken creates a new JWT for a user
-func GenerateToken(userID uint, email string) (string, error) {
+func GenerateToken(userID uint, email string, username string, balance int) (string, error) {
 	expirationTime := time.Now().Add(7 * 24 * time.Hour)
 	claims := &Claims{
-		UserID: userID,
-		Email:  email,
+		UserID:   userID,
+		Email:    email,
+		Username: username,
+		Balance:  balance,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -96,6 +100,8 @@ func AuthMiddleware() gin.HandlerFunc {
 		// Set user info in context for handlers
 		c.Set("userID", claims.UserID)
 		c.Set("userEmail", claims.Email)
+		c.Set("userName", claims.Username)
+		c.Set("userBalance", claims.Balance)
 		c.Next()
 	}
 }
