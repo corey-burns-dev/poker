@@ -1,0 +1,11 @@
+FROM golang:1.23-alpine AS build
+
+WORKDIR /app
+COPY . .
+RUN cd backend-go && go build -o /server cmd/server/main.go
+
+FROM alpine:3.18
+WORKDIR /
+COPY --from=build /server /server
+EXPOSE 4000
+CMD ["/server"]
