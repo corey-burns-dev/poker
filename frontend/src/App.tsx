@@ -322,7 +322,16 @@ function LobbyScreen() {
 
 		setGames(loaded);
 		setIsLoading(false);
-	}, [lobbyTables]);
+	}, [storedTables]);
+
+	const lobbyTables = useMemo(() => {
+		const map = new Map<string, LobbyTable>();
+		map.set(DEFAULT_TABLE.tableId, DEFAULT_TABLE);
+		for (const table of storedTables) {
+			map.set(table.tableId, table);
+		}
+		return Array.from(map.values());
+	}, [storedTables]);
 
 	useEffect(() => {
 		void refreshGames();
