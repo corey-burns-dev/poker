@@ -7,14 +7,8 @@ defmodule PokerBackendWeb.TableController do
   plug PokerBackendWeb.Plugs.TableActionRateLimit when action in [:update_action]
 
   def index(conn, _params) do
-    tables =
-      PokerBackend.Table.list_active_tables()
-      |> Enum.map(fn table_id ->
-        state = PokerBackend.Table.state(table_id)
-        %{table_id: table_id, name: state.table_name, stakes: state.stakes}
-      end)
-
-    json(conn, %{data: tables})
+    table_ids = PokerBackend.Table.list_active_tables()
+    json(conn, %{data: table_ids})
   end
 
   def show(conn, %{"table_id" => table_id}) do

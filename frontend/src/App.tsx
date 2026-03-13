@@ -237,20 +237,29 @@ async function postTableAction(
 	);
 }
 
+function parseTableId(tableId: string): LobbyTable {
+	if (tableId === DEFAULT_TABLE.tableId) return DEFAULT_TABLE;
+	if (tableId === TEST_TABLE.tableId) return TEST_TABLE;
+	
+	// Format: "room-name-abc12"
+	const parts = tableId.split("-");
+	if (parts.length < 2) return { tableId, name: tableId, stakes: "10 / 20" };
+	
+	const suffix = parts.pop();
+	const name = parts.join(" ").replace(/\b\w/g, c => c.toUpperCase());
+	return { tableId, name, stakes: "10 / 20" };
+}
+
 async function fetchActiveTables(): Promise<LobbyTable[]> {
 	try {
-		const data = await requestJson<{ data: { table_id: string; name: string; stakes: string }[] }>(
+		const data = await requestJson<{ data: string[] }>(
 			`${BACKEND_URL}/api/tables`,
 			{
 				credentials: "include",
 			},
 			"Failed to load active tables",
 		);
-		return data.data.map(t => ({
-			tableId: t.table_id,
-			name: t.name,
-			stakes: t.stakes
-		}));
+		return data.data.map(id => parseTableId(id));
 	} catch {
 		return [];
 	}
