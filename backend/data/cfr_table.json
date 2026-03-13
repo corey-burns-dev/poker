@@ -1,0 +1,22 @@
+{
+  "weak_preflop_nopair_nobet": [0, 813, 187],
+  "weak_preflop_nopair_bet": [441, 541, 18],
+  "medium_preflop_nopair_nobet": [153, 444, 403],
+  "medium_preflop_nopair_bet": [5, 886, 109],
+  "strong_preflop_nopair_nobet": [0, 122, 878],
+  "strong_preflop_nopair_bet": [0, 685, 315],
+  "strong_preflop_pair_nobet": [167, 166, 667],
+  "strong_preflop_pair_bet": [241, 538, 221],
+  "weak_postflop_nopair_nobet": [0, 841, 159],
+  "weak_postflop_nopair_bet": [761, 228, 11],
+  "weak_postflop_pair_nobet": [0, 110, 890],
+  "weak_postflop_pair_bet": [2, 531, 467],
+  "medium_postflop_nopair_nobet": [0, 726, 274],
+  "medium_postflop_nopair_bet": [764, 182, 54],
+  "medium_postflop_pair_nobet": [0, 609, 391],
+  "medium_postflop_pair_bet": [228, 592, 180],
+  "strong_postflop_nopair_nobet": [0, 783, 217],
+  "strong_postflop_nopair_bet": [398, 594, 7],
+  "strong_postflop_pair_nobet": [0, 384, 616],
+  "strong_postflop_pair_bet": [59, 667, 274]
+}

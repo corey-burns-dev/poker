@@ -1,0 +1,10 @@
+{
+  "1": { "style": "tight", "looseness": -14, "aggression": 4, "bluff": 1 },
+  "2": { "style": "aggressive", "looseness": 12, "aggression": 20, "bluff": 9 },
+  "3": { "style": "balanced", "looseness": 2, "aggression": 8, "bluff": 3 },
+  "4": { "style": "tight", "looseness": -12, "aggression": 5, "bluff": 1 },
+  "5": { "style": "aggressive", "looseness": 14, "aggression": 22, "bluff": 11 },
+  "6": { "style": "balanced", "looseness": 4, "aggression": 10, "bluff": 4 },
+  "7": { "style": "tight", "looseness": -16, "aggression": 3, "bluff": 0 },
+  "8": { "style": "aggressive", "looseness": 10, "aggression": 18, "bluff": 7 }
+}

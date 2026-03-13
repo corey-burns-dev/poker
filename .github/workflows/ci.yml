@@ -14,17 +14,16 @@ jobs:
     if: github.repository_owner == 'corey-burns-dev'
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Elixir
-        uses: erlef/setup-beam@v1
+      - name: Setup Go
+        uses: actions/setup-go@v4
         with:
-          elixir-version: '1.15.7'
-          otp-version: '26.0'
+          go-version: '1.23'
       - name: Restore dependencies
-        run: cd backend && mix deps.get
+        run: cd backend && go mod download
       - name: Compile
-        run: cd backend && mix compile --warnings-as-errors
+        run: cd backend && go build -o /dev/null cmd/server/main.go
       - name: Test
-        run: cd backend && mix test
+        run: cd backend && go test ./...
 
   validate-frontend:
     name: Frontend Validation

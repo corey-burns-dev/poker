@@ -1,0 +1,63 @@
+linters-settings:
+  govet:
+    check-shadowing: true
+  golint:
+    min-confidence: 0.8
+  gocyclo:
+    min-complexity: 15
+  maligned:
+    suggest-new: true
+  dupl:
+    threshold: 100
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+  misspell:
+    locale: US
+  lll:
+    line-length: 120
+  goimports:
+    local-prefixes: poker-backend
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+    disabled-checks:
+      - wrapperFunc
+      - rangeValCopy
+      - hugeParam
+
+linters:
+  disable-all: true
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+    - unused
+    - gosimple
+    - structcheck
+    - varcheck
+    - ineffassign
+    - deadcode
+    - typecheck
+    - bodyclose
+    - gocyclo
+    - goconst
+    - gocritic
+    - gofmt
+    - goimports
+    - lll
+    - misspell
+    - unparam
+    - nakedret
+    - prealloc
+    - whitespace
+
+run:
+  timeout: 5m
+  tests: true
+  skip-dirs:
+    - vendor

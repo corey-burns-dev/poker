@@ -8,8 +8,8 @@ SESSION_SECONDS ?= 180
 .PHONY: up down build logs ps deploy deploy-down frontend-shell backend-shell frontend-install frontend-lint frontend-test frontend-build frontend-check backend-setup backend-compile backend-test backend-check check push-images training-venv training-train training-train-leduc training-train-leduc-50k training-aggregate training-retrain training-train-holdem training-aggregate-holdem training-retrain-holdem stress-stack-up stress-stack-down stress-low stress-medium stress-high stress-extreme stress-insane stress-thousands
 
 push-images:
-	docker build --target prod -t ghcr.io/burnsco/poker-frontend:latest -f Dockerfile.frontend .
-	docker build --target prod -t ghcr.io/burnsco/poker-backend:latest -f Dockerfile.backend .
+	docker build -t ghcr.io/burnsco/poker-frontend:latest -f Dockerfile.frontend .
+	docker build -t ghcr.io/burnsco/poker-backend:latest -f Dockerfile.backend .
 	docker push ghcr.io/burnsco/poker-frontend:latest
 	docker push ghcr.io/burnsco/poker-backend:latest
 
@@ -21,14 +21,6 @@ down:
 
 deploy:
 	$(COMPOSE) -f docker-compose.deploy.yml up --build -d
-	$(MAKE) create-db
-	$(MAKE) migrate
-
-create-db:
-	$(COMPOSE) -f docker-compose.deploy.yml exec backend /app/bin/poker_backend eval "PokerBackend.Release.create_db"
-
-migrate:
-	$(COMPOSE) -f docker-compose.deploy.yml exec backend /app/bin/poker_backend eval "PokerBackend.Release.migrate"
 
 deploy-down:
 	$(COMPOSE) -f docker-compose.deploy.yml down
@@ -66,17 +58,25 @@ frontend-check:
 	$(COMPOSE) run --rm frontend bun run build
 
 backend-setup:
-	$(COMPOSE) run --rm backend mix deps.get
+	cd backend && go mod download
 
 backend-compile:
-	$(COMPOSE) run --rm backend mix compile
+	cd backend && go build -o /dev/null cmd/server/main.go
+
+backend-fmt:
+	cd backend && go fmt ./...
+
+backend-lint:
+	cd backend && if command -v golangci-lint >/dev/null 2>&1; then golangci-lint run; else echo "golangci-lint not found. Skip."; fi
 
 backend-test:
-	$(COMPOSE) run --rm -e MIX_ENV=test backend mix test
+	cd backend && go test ./...
 
 backend-check:
-	$(COMPOSE) run --rm -e MIX_ENV=test backend mix compile --warnings-as-errors
-	$(COMPOSE) run --rm -e MIX_ENV=test backend mix test
+	cd backend && go build -o /dev/null cmd/server/main.go
+	$(MAKE) backend-fmt
+	$(MAKE) backend-lint
+	cd backend && go test ./...
 
 # OpenSpiel training (run from repo root; requires Python 3 and training/.venv)
 training-venv:

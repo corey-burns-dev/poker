@@ -237,7 +237,6 @@ export function usePhoenixTable(tableId = "default"): UsePhoenixTableResult {
               setBackendTable(replyPayload.response.state);
             }
             setBackendState("Phoenix channel connected");
-            send(`table:${tableId}`, "ping", { source: "frontend" });
           } else {
             setBackendState("Phoenix channel join failed");
           }

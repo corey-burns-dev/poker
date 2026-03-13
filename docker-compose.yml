@@ -28,9 +28,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
-      target: dev
     working_dir: /app/backend
-    command: sh -lc "mix deps.get && mix phx.server"
+    command: go run cmd/server/main.go
     ports:
       - "4000:4000"
     ulimits:
@@ -39,21 +38,10 @@ services:
         hard: 65535
     environment:
       PORT: 4000
-      PHX_SERVER: "true"
       DATABASE_URL: postgresql://postgres:postgres@db:5432/poker_dev
       DB_HOSTNAME: db
-      PHX_CODE_RELOADER: "${PHX_CODE_RELOADER:-true}"
-      PHX_DEBUG_ERRORS: "${PHX_DEBUG_ERRORS:-true}"
-      PHX_LIVE_RELOAD: "${PHX_LIVE_RELOAD:-true}"
-      PHX_DEV_ROUTES: "${PHX_DEV_ROUTES:-true}"
-      PHX_EXPENSIVE_RUNTIME_CHECKS: "${PHX_EXPENSIVE_RUNTIME_CHECKS:-true}"
-      TABLE_ACTION_RATE_LIMIT_DISABLED: "${TABLE_ACTION_RATE_LIMIT_DISABLED:-false}"
-      TABLE_ACTION_RATE_LIMIT_LIMIT: "${TABLE_ACTION_RATE_LIMIT_LIMIT:-120}"
-      TABLE_ACTION_RATE_LIMIT_WINDOW_SECONDS: "${TABLE_ACTION_RATE_LIMIT_WINDOW_SECONDS:-10}"
     volumes:
       - .:/app
-      - backend_deps:/app/backend/deps
-      - backend_build:/app/backend/_build
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://localhost:4000/api/health || exit 1"]
       interval: 10s

@@ -1,18 +1,20 @@
 # Poker Platform
 
-A real-time poker platform with a Phoenix backend, React frontend, and CFR-trained bot personalities. The project combines table state, live play, and training tooling in one repo.
+A real-time poker platform with a Go backend, React frontend, and CFR-trained bot personalities. The project combines table state, live play, and training tooling in one repo.
 
 ## Repo layout
 
 - `frontend/`: React + Vite client
-- `backend/`: Elixir/Phoenix realtime backend
+- `backend/`: Go realtime backend (mimicking Phoenix Socket protocol)
 - `training/`: OpenSpiel-based bot training scripts
 
 ## Highlights
 
-- Realtime table play over Phoenix channels
+- Realtime table play over WebSockets
 - Multiple bot styles derived from CFR training output
 - Docker-first local development flow
+- PostgreSQL for user persistence
+- GORM for database management
 
 ## Quick start
 
@@ -24,7 +26,7 @@ Local development:
 
 ```bash
 cd frontend && bun install && bun run dev
-cd backend && mix deps.get && mix phx.server
+cd backend && go mod download && go run cmd/server/main.go
 ```
 
 Retrain bots:
@@ -33,6 +35,16 @@ Retrain bots:
 make training-retrain
 make training-retrain-holdem
 ```
+
+## Backend Checks
+
+To format, lint, and test the backend:
+
+```bash
+make backend-check
+```
+
+Requires `golangci-lint` to be installed for linting.
 
 ## Stress testing
 

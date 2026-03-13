@@ -1,35 +1,12 @@
-# Stage 1: Base image
-FROM elixir:1.15.7-otp-26-alpine AS base
-RUN apk add --no-cache libstdc++ openssl ncurses-libs build-base git python3 curl inotify-tools
+FROM golang:1.23-alpine AS build
+
 WORKDIR /app
-RUN mix local.hex --force && mix local.rebar --force
+COPY . .
+RUN cd backend && go build -o /server cmd/server/main.go
 
-# Stage 2: Dev image
-FROM base AS dev
-ENV MIX_ENV=dev
-# The command and volume mapping will be handled by docker-compose
-CMD ["mix", "phx.server"]
-
-# Stage 3: Build the release
-FROM base AS build
-ENV MIX_ENV=prod
-COPY backend/mix.exs backend/mix.lock ./
-RUN mix deps.get --only $MIX_ENV
-RUN mkdir config
-COPY backend/config/config.exs backend/config/prod.exs config/
-RUN mix deps.compile
-COPY backend/lib lib
-RUN mix compile
-COPY backend/config/runtime.exs config/
-LABEL org.opencontainers.image.source="https://github.com/burnsco/poker"
-RUN mix release
-
-# Stage 4: Run the release (Prod)
-FROM alpine:3.18 AS prod
-RUN apk add --no-cache libstdc++ openssl ncurses-libs curl
-WORKDIR /app
-RUN chown nobody /app
-ENV MIX_ENV=prod
-COPY --from=build --chown=nobody:nobody /app/_build/prod/rel/poker_backend ./
-USER nobody
-CMD ["/app/bin/poker_backend", "start"]
+FROM alpine:3.18
+WORKDIR /
+COPY --from=build /server /server
+COPY backend/data /data
+EXPOSE 4000
+CMD ["/server"]
