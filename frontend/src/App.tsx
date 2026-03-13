@@ -293,12 +293,12 @@ function LobbyScreen() {
 			allTables.map(async (table): Promise<LobbyGame> => {
 				const state = await fetchTableState(table.tableId);
 				const activeBots =
-					state?.players.filter((player) => player.is_bot && player.stack > 0)
+					state?.players?.filter((player) => player.is_bot && player.stack > 0)
 						.length ?? 0;
 				const openSeats =
-					state?.players.filter((player) => player.is_bot).length ?? MAX_SEATS;
+					state?.players?.filter((player) => player.is_bot).length ?? MAX_SEATS;
 				const humanPlayers =
-					state?.players.filter((player) => !player.is_bot).length ?? 0;
+					state?.players?.filter((player) => !player.is_bot).length ?? 0;
 				const status =
 					state == null
 						? "Offline"
