@@ -337,6 +337,7 @@ function LobbyScreen() {
 	);
 
 	const submitAuth = useCallback(async () => {
+		console.log("App: Register button clicked", { authMode, authEmail, authName });
 		console.log("App: submitAuth triggered", { authMode, authEmail, authName });
 		const trimmedEmail = authEmail.trim();
 		const trimmedName = authName.trim();
@@ -680,7 +681,7 @@ function LobbyScreen() {
 										<button
 											type="button"
 											className="btn primary tiny"
-											disabled={authSubmitDisabled}
+											disabled={authPending || loading}
 											onClick={() => void submitAuth()}
 										>
 											{authPending
