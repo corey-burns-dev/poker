@@ -89,6 +89,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const register = async (email: string, username: string, password: string) => {
+    console.log("AuthProvider: Attempting registration...", { email, username });
     setAuthPending(true);
     setAuthError(null);
 
@@ -104,8 +105,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         "Registration failed",
       );
 
+      console.log("AuthProvider: Registration successful", data.data);
       setUser(data.data);
     } catch (error) {
+      console.error("AuthProvider: Registration failed", error);
       const message = error instanceof Error ? error.message : "Registration failed";
       setAuthError(message);
       throw error;

@@ -330,25 +330,30 @@ function LobbyScreen() {
 	);
 
 	const submitAuth = useCallback(async () => {
+		console.log("App: submitAuth triggered", { authMode, authEmail, authName });
 		const trimmedEmail = authEmail.trim();
 		const trimmedName = authName.trim();
 		const trimmedPassword = authPassword.trim();
 
 		if (!isValidEmail(trimmedEmail)) {
+			console.log("App: Invalid email");
 			setAuthLocalError("Enter a valid email address.");
 			return;
 		}
 
 		if (authMode === "register" && trimmedName.length < 3) {
+			console.log("App: Name too short");
 			setAuthLocalError("Display name must be at least 3 characters.");
 			return;
 		}
 
 		if (trimmedPassword.length < 6) {
+			console.log("App: Password too short");
 			setAuthLocalError("Password must be at least 6 characters.");
 			return;
 		}
 
+		console.log("App: Validation passed, calling login/register");
 		setAuthLocalError(null);
 		clearAuthError();
 
@@ -358,6 +363,7 @@ function LobbyScreen() {
 			} else if (authMode === "register") {
 				await register(trimmedEmail, trimmedName, trimmedPassword);
 			}
+			console.log("App: Auth successful");
 
 			setLobbyNotice({
 				tone: "success",
