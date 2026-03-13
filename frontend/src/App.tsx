@@ -661,7 +661,13 @@ function LobbyScreen() {
 									</div>
 								</div>
 							) : authMode ? (
-								<>
+								<form
+									onSubmit={(e) => {
+										e.preventDefault();
+										console.log("App: Form onSubmit firing");
+										void submitAuth();
+									}}
+								>
 									<label>
 										Email
 										<input
@@ -700,13 +706,9 @@ function LobbyScreen() {
 									</label>
 									<div className="auth-actions">
 										<button
-											type="button"
+											type="submit"
 											className="btn primary tiny"
 											disabled={authPending || loading}
-											onClick={async () => {
-												console.log("App: Button onClick firing");
-												await submitAuth();
-											}}
 										>
 											{authPending
 												? authMode === "login"
@@ -741,7 +743,7 @@ function LobbyScreen() {
 											? "Need an account? Register"
 											: "Already have an account? Login"}
 									</button>
-								</>
+								</form>
 							) : (
 								<div className="auth-cta-group">
 									<button
