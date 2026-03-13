@@ -1,6 +1,14 @@
 defmodule PokerBackend.Release do
   @app :poker_backend
 
+  def create_db do
+    load_app()
+
+    for repo <- repos() do
+      repo.__adapter__.storage_up(repo.config())
+    end
+  end
+
   def migrate do
     load_app()
 
