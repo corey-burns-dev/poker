@@ -461,8 +461,19 @@ function LobbyScreen() {
 				});
 			}
 		};
+		const submitHandler = (e: SubmitEvent) => {
+			console.log("App: Global form submit detected", {
+				target: e.target,
+				loading,
+				authPending,
+			});
+		};
 		window.addEventListener("click", handler);
-		return () => window.removeEventListener("click", handler);
+		window.addEventListener("submit", submitHandler);
+		return () => {
+			window.removeEventListener("click", handler);
+			window.removeEventListener("submit", submitHandler);
+		};
 	}, [loading, authPending]);
 
 	const authMessage = authLocalError ?? authError;
@@ -665,6 +676,7 @@ function LobbyScreen() {
 									onSubmit={(e) => {
 										e.preventDefault();
 										console.log("App: Form onSubmit firing");
+										alert("App: Form onSubmit fired");
 										void submitAuth();
 									}}
 								>
