@@ -449,6 +449,21 @@ function LobbyScreen() {
 		setCreateBusy(false);
 	}, [createName, createStakes, openAuthMode, storedTables, user]);
 
+	useEffect(() => {
+		const handler = (e: MouseEvent) => {
+			if (e.target instanceof HTMLElement && e.target.closest("button")) {
+				console.log("App: Global button click detected", {
+					text: e.target.innerText,
+					disabled: (e.target as HTMLButtonElement).disabled,
+					loading,
+					authPending,
+				});
+			}
+		};
+		window.addEventListener("click", handler);
+		return () => window.removeEventListener("click", handler);
+	}, [loading, authPending]);
+
 	const authMessage = authLocalError ?? authError;
 	const authSubmitDisabled =
 		authPending ||
@@ -460,6 +475,11 @@ function LobbyScreen() {
 
 	return (
 		<div id="app" className="app-lobby">
+			{loading && (
+				<div style={{ position: "fixed", top: 0, left: 0, right: 0, background: "rgba(255,0,0,0.8)", color: "white", textAlign: "center", zIndex: 9999, padding: "4px", fontSize: "12px" }}>
+					DEBUG: Auth is Loading...
+				</div>
+			)}
 			<div className="lobby-bg-shape"></div>
 			<header className="top-bar glass-panel anim-slide-up">
 				<div className="brand-mark">
